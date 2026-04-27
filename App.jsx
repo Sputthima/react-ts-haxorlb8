@@ -14,7 +14,7 @@ const ROLE_APPS = {
   warehouse: ["gate"],
   queue:     ["queue"],
   manager:   ["obd","booking","gate","queue","manager"],
-  admin:     ["obd","booking","gate","queue","manager","supplier","inbound"],
+  admin:     ["obd","booking","gate","queue","manager","supplier","inbound","admin"],
   supplier:  ["supplier"],
 };
 
@@ -26,6 +26,7 @@ const APPS = [
   {id:"manager",  icon:"📊", name:"Manager Dashboard", role:"Manager",   color:"#1d4ed8", roles:["manager","admin"]},
   {id:"supplier", icon:"📦", name:"Supplier Portal",   role:"Supplier",  color:"#065f46", roles:["supplier","admin"]},
   {id:"inbound",  icon:"🏭", name:"Inbound Gate & WH", role:"Gate/WH",   color:"#047857", roles:["gate","warehouse","manager","admin"]},
+  {id:"admin",    icon:"⚙️", name:"Admin Panel",       role:"Admin",     color:"#dc2626", roles:["admin"]},
 ];
 
 const STATUS_TH = {
@@ -60,6 +61,102 @@ function Spinner() {
 function Alert({type,msg}) {
   const s = {err:{bg:"#fee2e2",c:"#991b1b"},ok:{bg:"#d1fae5",c:"#065f46"},warn:{bg:"#fef3c7",c:"#92400e"}}[type]||{bg:"#dbeafe",c:"#1d4ed8"};
   return <div style={{padding:"10px 14px",borderRadius:10,fontSize:13,marginBottom:12,background:s.bg,color:s.c,fontWeight:600}}>{msg}</div>;
+}
+
+// ── PDF BOOKING SLIP ─────────────────────────────────────────
+function printBookingSlip(booking, groupInfo={}) {
+  const w = window.open("","_blank","width=700,height=900");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;padding:32px;max-width:600px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #059669;padding-bottom:12px;margin-bottom:16px}
+    .title{font-size:20px;font-weight:900;color:#065f46}
+    .sub{font-size:11px;color:#6b7280}
+    p{margin:6px 0;font-size:13px}
+    .lbl{font-weight:700;display:inline-block;width:130px;color:#374151}
+    hr{margin:12px 0;border:none;border-top:1px solid #e5e7eb}
+    .bk-id{font-family:monospace;font-size:18px;font-weight:900;letter-spacing:2px;color:#065f46}
+    .barcode{text-align:center;margin:20px 0;padding:16px;border:1px solid #e5e7eb;border-radius:8px}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+    th{background:#065f46;color:#fff;padding:6px 10px;text-align:left}
+    td{padding:6px 10px;border-bottom:1px solid #e5e7eb}
+    .footer{font-size:10px;color:#9ca3af;text-align:center;margin-top:16px}
+    @media print{button{display:none}}
+  </style></head><body>
+  <div class="header">
+    <div>
+      <div class="title">🏭 Dock Booking Slip</div>
+      <div class="sub">Dock Management System — YCH Ladkrabang</div>
+    </div>
+    <button onclick="window.print()" style="background:#059669;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:700">🖨 Print</button>
+  </div>
+  <p><span class="lbl">Booking ID:</span><span class="bk-id">${booking.booking_id||""}</span></p>
+  <p><span class="lbl">Group No:</span>${booking.group_number||groupInfo.group_number||"—"}</p>
+  <hr>
+  <p><span class="lbl">Dock:</span>Dock ${booking.dock_no||""}</p>
+  <p><span class="lbl">Date:</span>${booking.booking_date||""}</p>
+  <p><span class="lbl">Time:</span>${String(booking.booking_hour||"").slice(0,5)}</p>
+  <hr>
+  <p><span class="lbl">Truck Plate:</span>${booking.truck_plate||""}</p>
+  <p><span class="lbl">Truck Type:</span>${booking.truck_type||"—"}</p>
+  <p><span class="lbl">Driver:</span>${booking.driver_name||""}</p>
+  <p><span class="lbl">Phone:</span>${booking.phone||""}</p>
+  <div class="barcode">
+    <div style="font-family:monospace;font-size:24px;font-weight:900;letter-spacing:4px">${booking.booking_id||""}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px">กรุณาแสดง Booking ID นี้ที่ Gate</div>
+  </div>
+  <div class="footer">พิมพ์เมื่อ ${new Date().toLocaleString("th-TH")} • Dock Management System</div>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
+}
+
+// ── PDF INBOUND SLIP ──────────────────────────────────────────
+function printInboundSlip(booking, asn={}, invoices=[]) {
+  const w = window.open("","_blank","width=700,height=900");
+  const totalQty = invoices.reduce((s,inv)=>s+(inv.invoice_qty||0),0);
+  const invRows = invoices.map((inv,i)=>`<tr>
+    <td>${i+1}</td><td>${inv.invoice_no}</td><td>${inv.po_no||"—"}</td>
+    <td>${inv.invoice_date||""}</td><td style="text-align:right">${inv.invoice_qty||0}</td>
+  </tr>`).join("");
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
+  <style>
+    body{font-family:Arial,sans-serif;padding:32px;max-width:600px;margin:0 auto}
+    .header{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #059669;padding-bottom:12px;margin-bottom:16px}
+    .title{font-size:20px;font-weight:900;color:#065f46}
+    p{margin:6px 0;font-size:13px}.lbl{font-weight:700;display:inline-block;width:130px}
+    hr{margin:12px 0;border:none;border-top:1px solid #e5e7eb}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#065f46;color:#fff;padding:6px 10px;text-align:left}
+    td{padding:6px 10px;border-bottom:1px solid #e5e7eb}
+    .bk-id{font-family:monospace;font-size:16px;font-weight:900;letter-spacing:2px;color:#065f46}
+    @media print{button{display:none}}
+  </style></head><body>
+  <div class="header">
+    <div><div class="title">🏭 Inbound Booking Slip</div><div style="font-size:11px;color:#6b7280">Dock Management System</div></div>
+    <button onclick="window.print()" style="background:#059669;color:#fff;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:700">🖨 Print</button>
+  </div>
+  <p><span class="lbl">Booking ID:</span><span class="bk-id">${booking.booking_id||""}</span></p>
+  <p><span class="lbl">ASN No:</span>${booking.asn_no||""}</p>
+  <p><span class="lbl">Supplier:</span>${asn.supplier_name||booking.supplier_code||""}</p>
+  <hr>
+  <p><span class="lbl">Dock:</span>Dock ${booking.dock_no||""}</p>
+  <p><span class="lbl">Date:</span>${booking.booking_date||""}</p>
+  <p><span class="lbl">Time:</span>${String(booking.booking_hour||"").slice(0,5)}</p>
+  <hr>
+  <p><span class="lbl">Truck:</span>${booking.truck_plate||""} (${booking.truck_type||""})</p>
+  <p><span class="lbl">Driver:</span>${booking.driver_name||""} ${booking.driver_phone||""}</p>
+  <hr>
+  <b style="font-size:13px">Invoices (${invoices.length} invoices | Total: ${totalQty} units)</b>
+  <table><thead><tr><th>#</th><th>Invoice No</th><th>PO No</th><th>Date</th><th>Qty</th></tr></thead>
+  <tbody>${invRows}</tbody></table>
+  <div style="margin-top:20px;text-align:center;padding:12px;border:1px solid #e5e7eb;border-radius:8px">
+    <div style="font-family:monospace;font-size:20px;font-weight:900;letter-spacing:3px;color:#065f46">${booking.booking_id||""}</div>
+    <div style="font-size:11px;color:#6b7280;margin-top:4px">กรุณาแสดง Barcode นี้ที่ประตูทางเข้า (Inbound)</div>
+  </div>
+  </body></html>`;
+  w.document.write(html);
+  w.document.close();
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────
@@ -204,7 +301,7 @@ function BookingApp({user, onBack}) {
   useEffect(()=>{
     const ch = supabase.channel("dock_slots_changes")
       .on("postgres_changes",{event:"*",schema:"public",table:"dock_slots"},()=>loadSlots(selectedDate))
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[selectedDate,loadSlots]);
 
@@ -241,6 +338,9 @@ function BookingApp({user, onBack}) {
       .update({status:"BOOKED", booking_id:bkId})
       .eq("slot_key", selected.slot_key);
     setMsg({type:"ok",msg:"✅ จอง Dock "+selected.dock_no+" เวลา "+String(selected.slot_hour).slice(0,5)+" สำเร็จ! Booking ID: "+bkId});
+    // auto print slip
+    const bkData = {booking_id:bkId,booking_date:selectedDate,booking_hour:selected.slot_hour,dock_no:selected.dock_no,truck_plate:form.truckPlate,truck_type:form.truckType,driver_name:form.driverName,phone:form.phone};
+    setTimeout(()=>printBookingSlip(bkData),500);
     setSelected(null); setShowForm(false);
     setForm({truckPlate:"",truckType:"",driverName:"",phone:""});
     setBooking(false);
@@ -392,7 +492,7 @@ function GateApp({user, onBack}) {
   useEffect(()=>{
     const ch = supabase.channel("bookings_gate")
       .on("postgres_changes",{event:"*",schema:"public",table:"bookings"},()=>loadActive())
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[loadActive]);
 
@@ -542,7 +642,7 @@ function ManagerApp({user, onBack}) {
   useEffect(()=>{
     const ch = supabase.channel("manager_live")
       .on("postgres_changes",{event:"*",schema:"public",table:"bookings"},()=>loadData())
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[loadData]);
 
@@ -637,7 +737,7 @@ function OBDApp({user, onBack}) {
     const ch = supabase.channel("obd_live")
       .on("postgres_changes",{event:"*",schema:"public",table:"obd_release"},()=>loadData())
       .on("postgres_changes",{event:"*",schema:"public",table:"group_header"},()=>loadData())
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[loadData]);
 
@@ -904,7 +1004,7 @@ function QueueApp({user, onBack}) {
   useEffect(()=>{
     const ch = supabase.channel("queue_live")
       .on("postgres_changes",{event:"*",schema:"public",table:"queue_log"},()=>loadQueue())
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[loadQueue]);
 
@@ -1353,7 +1453,7 @@ function InboundApp({user, onBack}) {
   useEffect(()=>{
     const ch = supabase.channel("inbound_live")
       .on("postgres_changes",{event:"*",schema:"public",table:"inbound_bookings"},()=>loadActive())
-      .subscribe();
+      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
     return ()=>supabase.removeChannel(ch);
   },[loadActive]);
 
@@ -1451,6 +1551,12 @@ function InboundApp({user, onBack}) {
                 ))}
               </div>}
 
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <button onClick={()=>printInboundSlip(found,asn,invoices)}
+                  style={{flex:1,padding:"8px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:8,fontWeight:700,cursor:"pointer",fontSize:12}}>
+                  🖨 Print Slip
+                </button>
+              </div>
               {ACTIONS[found.status] && (
                 <button onClick={()=>doAction(found.booking_id,ACTIONS[found.status].next)} disabled={acting}
                   style={{width:"100%",padding:"10px",background:ACTIONS[found.status].color,color:"#fff",border:"none",borderRadius:9,fontWeight:700,cursor:"pointer",fontSize:13,opacity:acting?.6:1}}>
@@ -1505,6 +1611,231 @@ function PlaceholderApp({app, onBack}) {
   );
 }
 
+// ── ADMIN PANEL ──────────────────────────────────────────────
+function AdminApp({user, onBack}) {
+  const [tab, setTab] = useState("users");
+  const [users, setUsers] = useState([]);
+  const [config, setConfig] = useState([]);
+  const [subcons, setSubcons] = useState([]);
+  const [msg, setMsg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState({username:"",fullName:"",role:"cs",subconCode:"",password:""});
+  const [saving, setSaving] = useState(false);
+
+  const loadAll = useCallback(async()=>{
+    setLoading(true);
+    const [u,c,s] = await Promise.all([
+      supabase.from("users").select("*").order("role").order("username"),
+      supabase.from("config").select("*").order("key"),
+      supabase.from("subcon_master").select("*").order("subcon_code"),
+    ]);
+    if(u.data) setUsers(u.data);
+    if(c.data) setConfig(c.data);
+    if(s.data) setSubcons(s.data);
+    setLoading(false);
+  },[]);
+
+  useEffect(()=>{ loadAll(); },[loadAll]);
+
+  const toggleUser = async(id, active)=>{
+    await supabase.from("users").update({active:!active}).eq("id",id);
+    loadAll();
+  };
+
+  const updateConfig = async(key, value)=>{
+    await supabase.from("config").update({value}).eq("key",key);
+    setMsg({type:"ok",msg:"✅ อัปเดต "+key+" แล้ว"});
+    setTimeout(()=>setMsg(null),2000);
+  };
+
+  const createUser = async()=>{
+    if(!newUser.username||!newUser.fullName||!newUser.password) return setMsg({type:"err",msg:"กรุณากรอกให้ครบ"});
+    setSaving(true);
+    const {error} = await supabase.from("users").insert({
+      username: newUser.username.trim(),
+      password_hash: newUser.password, // TODO: hash จริง
+      full_name: newUser.fullName,
+      role: newUser.role,
+      subcon_code: newUser.subconCode||null,
+      active: true,
+    });
+    if(error) setMsg({type:"err",msg:error.message});
+    else { setMsg({type:"ok",msg:"✅ สร้าง user สำเร็จ"}); setShowAddUser(false); setNewUser({username:"",fullName:"",role:"cs",subconCode:"",password:""}); loadAll(); }
+    setSaving(false);
+  };
+
+  const generateSlots = async()=>{
+    setSaving(true); setMsg(null);
+    const docks = 5;
+    const hours = Array.from({length:13},(_,i)=>i+6); // 06-18
+    const days = Array.from({length:7},(_,i)=>{
+      const d=new Date(); d.setDate(d.getDate()+i);
+      return d.toISOString().slice(0,10);
+    });
+    let count = 0;
+    for(const date of days){
+      for(const h of hours){
+        for(let dk=1;dk<=docks;dk++){
+          const hStr = String(h).padStart(2,"0")+":00";
+          const key = date+"_"+hStr+"_D"+String(dk).padStart(2,"0");
+          const {error} = await supabase.from("dock_slots").insert({
+            slot_key:key, slot_date:date,
+            slot_hour:hStr+":00", dock_no:dk, status:"AVAILABLE"
+          }).eq("slot_key",key);
+          if(!error) count++;
+        }
+      }
+    }
+    setMsg({type:"ok",msg:"✅ สร้าง Slot "+count+" รายการ (7 วัน)"});
+    setSaving(false);
+  };
+
+  const ROLES = ["cs","gate","warehouse","queue","manager","admin","supplier"];
+  const ROLE_COLOR = {cs:"#0f4bd7",gate:"#ea580c",warehouse:"#7c3aed",queue:"#ca8a04",manager:"#1d4ed8",admin:"#dc2626",supplier:"#065f46"};
+
+  return (
+    <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
+      <div style={{background:"linear-gradient(90deg,#7f1d1d,#dc2626)",color:"#fff",padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
+        <span style={{fontWeight:800,fontSize:15}}>⚙️ Admin Panel</span>
+        <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.15)",borderRadius:8,padding:3,marginLeft:8}}>
+          {["users","config","slots"].map(t=>(
+            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:6,padding:"4px 12px",fontWeight:700,fontSize:12,cursor:"pointer",background:tab===t?"#fff":"transparent",color:tab===t?"#dc2626":"rgba(255,255,255,.8)"}}>
+              {t==="users"?"👥 Users":t==="config"?"⚙️ Config":"📅 Slots"}
+            </button>
+          ))}
+        </div>
+        <div style={{marginLeft:"auto",display:"flex",gap:8}}>
+          {tab==="users" && <button onClick={()=>setShowAddUser(true)} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>+ เพิ่ม User</button>}
+          {tab==="slots" && <button onClick={generateSlots} disabled={saving} style={{background:"#f59e0b",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12,opacity:saving?.6:1}}>{saving?"กำลังสร้าง…":"🗓 สร้าง Slot 7 วัน"}</button>}
+        </div>
+      </div>
+
+      <div style={{padding:14,maxWidth:1000,margin:"0 auto"}}>
+        {msg && <Alert type={msg.type} msg={msg.msg}/>}
+        {loading ? <div style={{padding:40,textAlign:"center"}}><Spinner/></div> : <>
+
+        {/* USERS TAB */}
+        {tab==="users" && (
+          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:"#0a2a6e",fontSize:14}}>
+              Users ({users.length})
+            </div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:"#f8fafc"}}>
+                {["Username","Full Name","Role","SubCon","Active",""].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,color:"#374151"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {users.map(u=>(
+                  <tr key={u.id} style={{borderBottom:"1px solid #f3f4f6",opacity:u.active?1:.5}}>
+                    <td style={{padding:"8px 12px",fontFamily:"monospace",fontWeight:700}}>{u.username}</td>
+                    <td style={{padding:"8px 12px"}}>{u.full_name}</td>
+                    <td style={{padding:"8px 12px"}}>
+                      <span style={{background:ROLE_COLOR[u.role]+"22",color:ROLE_COLOR[u.role],borderRadius:999,padding:"2px 8px",fontSize:10,fontWeight:800}}>{u.role}</span>
+                    </td>
+                    <td style={{padding:"8px 12px",color:"#6b7280"}}>{u.subcon_code||"—"}</td>
+                    <td style={{padding:"8px 12px"}}>
+                      <span style={{color:u.active?"#16a34a":"#dc2626",fontWeight:700}}>{u.active?"✅":"❌"}</span>
+                    </td>
+                    <td style={{padding:"8px 12px"}}>
+                      <button onClick={()=>toggleUser(u.id,u.active)} style={{background:u.active?"#fee2e2":"#d1fae5",color:u.active?"#991b1b":"#065f46",border:"none",borderRadius:7,padding:"3px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
+                        {u.active?"ปิดใช้งาน":"เปิดใช้งาน"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* CONFIG TAB */}
+        {tab==="config" && (
+          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:"#0a2a6e",fontSize:14}}>Config Settings</div>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
+              <thead><tr style={{background:"#f8fafc"}}>
+                {["Key","Value","Description"].map(h=>(
+                  <th key={h} style={{padding:"8px 12px",textAlign:"left",fontWeight:700,color:"#374151"}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {config.map(c=>(
+                  <tr key={c.key} style={{borderBottom:"1px solid #f3f4f6"}}>
+                    <td style={{padding:"8px 12px",fontFamily:"monospace",fontWeight:700,fontSize:11,color:"#0a2a6e"}}>{c.key}</td>
+                    <td style={{padding:"8px 6px"}}>
+                      <input defaultValue={c.value}
+                        onBlur={e=>{ if(e.target.value!==c.value) updateConfig(c.key,e.target.value); }}
+                        style={{width:"100%",padding:"5px 8px",border:"1px solid #e5e7eb",borderRadius:7,fontSize:12,outline:"none",fontFamily:"monospace"}}/>
+                    </td>
+                    <td style={{padding:"8px 12px",color:"#6b7280",fontSize:11}}>{c.description||"—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* SLOTS TAB */}
+        {tab==="slots" && (
+          <div style={{background:"#fff",borderRadius:14,padding:24,boxShadow:"0 4px 20px rgba(0,0,0,.07)",textAlign:"center"}}>
+            <div style={{fontSize:32,marginBottom:12}}>📅</div>
+            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:18,marginBottom:8}}>Auto Generate Dock Slots</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:24,maxWidth:400,margin:"0 auto 24px"}}>
+              สร้าง Slot อัตโนมัติ 7 วัน ข้างหน้า (Dock 1-5 • 06:00-18:00) Slot ที่มีอยู่แล้วจะไม่ถูกเขียนทับ
+            </div>
+            <button onClick={generateSlots} disabled={saving}
+              style={{background:"#f59e0b",color:"#fff",border:"none",borderRadius:12,padding:"12px 32px",fontWeight:800,cursor:"pointer",fontSize:15,opacity:saving?.6:1}}>
+              {saving?"กำลังสร้าง Slot…":"🗓 สร้าง Slot 7 วัน"}
+            </button>
+          </div>
+        )}
+        </>}
+      </div>
+
+      {/* ADD USER MODAL */}
+      {showAddUser && (
+        <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
+          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16,marginBottom:16}}>👥 เพิ่ม User ใหม่</div>
+            {[{l:"Username *",k:"username"},{l:"Full Name *",k:"fullName"},{l:"Password *",k:"password",t:"password"}].map(f=>(
+              <div key={f.k} style={{marginBottom:10}}>
+                <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:4,color:"#374151"}}>{f.l}</label>
+                <input value={newUser[f.k]} onChange={e=>setNewUser(p=>({...p,[f.k]:e.target.value}))} type={f.t||"text"}
+                  style={{width:"100%",padding:"8px 10px",border:"1.5px solid #e5e7eb",borderRadius:9,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
+              </div>
+            ))}
+            <div style={{marginBottom:10}}>
+              <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:4,color:"#374151"}}>Role *</label>
+              <select value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1.5px solid #e5e7eb",borderRadius:9,fontSize:13,outline:"none",boxSizing:"border-box"}}>
+                {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:4,color:"#374151"}}>SubCon Code</label>
+              <select value={newUser.subconCode} onChange={e=>setNewUser(p=>({...p,subconCode:e.target.value}))}
+                style={{width:"100%",padding:"8px 10px",border:"1.5px solid #e5e7eb",borderRadius:9,fontSize:13,outline:"none",boxSizing:"border-box"}}>
+                <option value="">— ไม่มี —</option>
+                {subcons.map(s=><option key={s.subcon_code} value={s.subcon_code}>{s.subcon_code} — {s.subcon_name}</option>)}
+              </select>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAddUser(false)} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+              <button onClick={createUser} disabled={saving} style={{flex:2,padding:"10px",background:"#dc2626",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
+                {saving?"กำลังสร้าง…":"✓ สร้าง User"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── MAIN APP ─────────────────────────────────────────────────
 export default function App() {
   const [user,setUser] = useState(null);
@@ -1536,8 +1867,9 @@ export default function App() {
       {view==="queue"    && <QueueApp user={user} onBack={()=>setView("launcher")}/>}
       {view==="supplier" && <SupplierApp user={user} onBack={()=>setView("launcher")}/>}
       {view==="inbound"  && <InboundApp user={user} onBack={()=>setView("launcher")}/>}
+      {view==="admin"    && user.role==="admin" && <AdminApp user={user} onBack={()=>setView("launcher")}/>}
       {view==="manager"  && <ManagerApp user={user} onBack={()=>setView("launcher")}/>}
-      {!["launcher","obd","booking","gate","queue","manager","supplier","inbound"].includes(view) && currentApp &&
+      {!["launcher","obd","booking","gate","queue","manager","supplier","inbound","admin"].includes(view) && currentApp &&
         <PlaceholderApp app={currentApp} onBack={()=>setView("launcher")}/>}
     </>
   );
