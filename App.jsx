@@ -3,8 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── SUPABASE CLIENT ───────────────────────────────────────────
 const supabase = createClient(
-  "https://qgfldtogrjikyfoirknr.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFnZmxkdG9ncmppa3lmb2lya25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMDE0NTYsImV4cCI6MjA5MjY3NzQ1Nn0.Nk8nGKQNkhTDR7xmp1BX4wJQreebk_Yap_Y3cUtLqYg"
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
 // ── CONSTANTS ─────────────────────────────────────────────────
