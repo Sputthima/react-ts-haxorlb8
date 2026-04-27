@@ -733,12 +733,16 @@ function OBDApp({user, onBack}) {
   useEffect(()=>{ loadData(); },[loadData]);
 
   // Realtime
-  useEffect(()=>{
+useEffect(()=>{
     const ch = supabase.channel("obd_live")
       .on("postgres_changes",{event:"*",schema:"public",table:"obd_release"},()=>loadData())
       .on("postgres_changes",{event:"*",schema:"public",table:"group_header"},()=>loadData())
-      .subscribe((s)=>{ if(s==="CHANNEL_ERROR"||s==="TIMED_OUT") console.warn("Realtime error:",s); });
-    return ()=>supabase.removeChannel(ch);
+      .subscribe((s)=>{
+        if(s==="CHANNEL_ERROR"||s==="TIMED_OUT"){
+          console.warn("Realtime obd_live error - falling back to manual refresh");
+        }
+      });
+    return ()=>{ try{ supabase.removeChannel(ch); }catch(e){} };
   },[loadData]);
 
   const createOBD = async() => {
