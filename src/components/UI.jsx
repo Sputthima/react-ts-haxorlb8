@@ -1,82 +1,183 @@
 import React from "react";
+import { T, STATUS_COLORS } from "../theme";
 
-export function StatusBadge({ status, size = 10 }) {
-  const STATUS_TH = {
-    AVAILABLE:"ว่าง", BOOKED:"จอง", RESERVED:"จอง", ON_YARD:"On Yard",
-    CALLED_TO_DOCK:"เรียกแล้ว", TRUCK_DOCKED:"เข้า Dock", LOADING:"Loading",
-    COMPLETED:"เสร็จ", OPEN:"รอ Book", GROUPED:"Grouped", CANCELLED:"ยกเลิก",
-    BOOKING_PENDING:"รอ Book", UNLOADING:"ขนลง", RECEIVED:"รับแล้ว",
-    WAITING:"รอ", CALLING:"กำลังเรียก", SKIPPED:"ข้าม",
-  };
-  const colors = {
-    AVAILABLE:{bg:"#d1fae5",c:"#065f46"}, BOOKED:{bg:"#fee2e2",c:"#991b1b"},
-    RESERVED:{bg:"#d1fae5",c:"#065f46"}, ON_YARD:{bg:"#fef9c3",c:"#854d0e"},
-    CALLED_TO_DOCK:{bg:"#ffedd5",c:"#9a3412"}, TRUCK_DOCKED:{bg:"#ede9fe",c:"#5b21b6"},
-    LOADING:{bg:"#dbeafe",c:"#1e40af"}, COMPLETED:{bg:"#dcfce7",c:"#166534"},
-    OPEN:{bg:"#dcfce7",c:"#166534"}, GROUPED:{bg:"#dbeafe",c:"#1d4ed8"},
-    CANCELLED:{bg:"#fee2e2",c:"#991b1b"}, BOOKING_PENDING:{bg:"#fef9c3",c:"#92400e"},
-    UNLOADING:{bg:"#dbeafe",c:"#1e40af"}, RECEIVED:{bg:"#dcfce7",c:"#166534"},
-    WAITING:{bg:"#f3f4f6",c:"#374151"}, CALLING:{bg:"#fef3c7",c:"#92400e"},
-    SKIPPED:{bg:"#f3f4f6",c:"#6b7280"},
-  };
-  const col = colors[status] || { bg:"#f3f4f6", c:"#374151" };
+export function StatusBadge({ status, size = 11 }) {
+  const c = STATUS_COLORS[status] || STATUS_COLORS.DEFAULT;
   return (
-    <span style={{display:"inline-block",padding:`2px ${size<11?7:9}px`,borderRadius:999,fontSize:size,fontWeight:800,background:col.bg,color:col.c}}>
-      {STATUS_TH[status] || status}
-    </span>
+    <span style={{
+      background: c.bg, color: c.color,
+      border: `1px solid ${c.border}`,
+      borderRadius: 999, padding: `2px ${size + 2}px`,
+      fontSize: size, fontWeight: 800, whiteSpace: "nowrap", letterSpacing: .3,
+    }}>{status}</span>
   );
 }
 
-export function Spinner() {
-  return <div style={{width:20,height:20,border:"3px solid #e5e7eb",borderTopColor:"#0f4bd7",borderRadius:"50%",animation:"spin .6s linear infinite",margin:"0 auto"}}/>;
+export function Spinner({ size = 22 }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: 24 }}>
+      <div style={{
+        width: size, height: size,
+        border: `3px solid ${T.border}`,
+        borderTop: `3px solid ${T.gold}`,
+        borderRadius: "50%",
+        animation: "spin .7s linear infinite",
+      }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
 }
 
 export function Alert({ type, msg }) {
   const s = {
-    err:  {bg:"#fee2e2",c:"#991b1b"},
-    ok:   {bg:"#d1fae5",c:"#065f46"},
-    warn: {bg:"#fef3c7",c:"#92400e"},
-  }[type] || {bg:"#dbeafe",c:"#1d4ed8"};
-  return <div style={{padding:"10px 14px",borderRadius:10,fontSize:13,marginBottom:12,background:s.bg,color:s.c,fontWeight:600}}>{msg}</div>;
+    ok:   { bg: T.greenBg,  color: T.green,  border: "#BBF7D0", icon: "✅" },
+    err:  { bg: T.redBg,    color: T.red,     border: "#FECACA", icon: "❌" },
+    warn: { bg: T.amberBg,  color: T.amber,   border: "#FDE68A", icon: "⚠️" },
+    info: { bg: T.blueBg,   color: T.blue,    border: "#BFDBFE", icon: "ℹ️" },
+  }[type] || { bg: T.blueBg, color: T.blue, border: "#BFDBFE", icon: "ℹ️" };
+  return (
+    <div style={{
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      borderRadius: 10, padding: "10px 14px", marginBottom: 12,
+      fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8,
+    }}>
+      <span>{s.icon}</span><span>{msg}</span>
+    </div>
+  );
 }
 
-export function Topbar({ title, color="#0a2a6e", onBack, children }) {
+export function Topbar({ title, onBack, live = false, right = null }) {
   return (
-    <div style={{background:color,color:"#fff",padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
-      {onBack && <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>}
-      <span style={{fontWeight:800,fontSize:15}}>{title}</span>
-      {children}
-      <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-        <span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 0 3px rgba(34,197,94,.25)"}}/>
-        <span style={{fontSize:11,fontWeight:700,color:"#86efac"}}>LIVE</span>
+    <div style={{
+      background: T.topbarGrad, color: T.white,
+      padding: "13px 18px", display: "flex", alignItems: "center",
+      gap: 10, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 40,
+      boxShadow: "0 2px 12px rgba(18,40,80,.25)",
+      borderBottom: `3px solid ${T.gold}`,
+    }}>
+      {onBack && (
+        <button onClick={onBack} style={{
+          border: "1px solid rgba(255,255,255,.25)", background: "rgba(255,255,255,.08)",
+          color: T.white, borderRadius: 8, padding: "5px 12px",
+          cursor: "pointer", fontSize: 12, fontWeight: 700,
+        }}>← Back</button>
+      )}
+      <div style={{
+        width: 28, height: 28, borderRadius: 6, background: T.gold,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontWeight: 900, fontSize: 11, color: T.navy, letterSpacing: -1, flexShrink: 0,
+      }}>YCH</div>
+      <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: .2 }}>{title}</span>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+        {right}
+        {live && <LiveBadge />}
       </div>
     </div>
   );
 }
 
-export function Modal({ title, onClose, children, maxWidth=420 }) {
+export function Modal({ title, onClose, children, width = 520 }) {
   return (
-    <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
-      <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth,boxShadow:"0 20px 60px rgba(0,0,0,.3)",maxHeight:"90vh",overflowY:"auto"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-          <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16}}>{title}</div>
-          {onClose && <button onClick={onClose} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button>}
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(15,31,61,.55)",
+      backdropFilter: "blur(4px)", display: "flex",
+      alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16,
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: T.bgCard, borderRadius: 16,
+        width: "100%", maxWidth: width, maxHeight: "90vh", overflowY: "auto",
+        boxShadow: "0 20px 60px rgba(27,58,107,.25)", border: `1px solid ${T.border}`,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "14px 18px", borderBottom: `3px solid ${T.gold}`,
+          background: T.topbarGrad, borderRadius: "16px 16px 0 0",
+        }}>
+          <span style={{ fontWeight: 800, color: T.white, fontSize: 15 }}>{title}</span>
+          <button onClick={onClose} style={{
+            background: "rgba(255,255,255,.15)", border: "none", color: T.white,
+            borderRadius: 8, width: 30, height: 30, cursor: "pointer",
+            fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+          }}>✕</button>
         </div>
-        {children}
+        <div style={{ padding: 18 }}>{children}</div>
       </div>
     </div>
   );
 }
 
-export function Card({ children, style={} }) {
-  return <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14,...style}}>{children}</div>;
+export function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: T.bgCard, borderRadius: 14, padding: 18, marginBottom: 14,
+      boxShadow: T.shadow, border: `1px solid ${T.border}`, ...style,
+    }}>{children}</div>
+  );
 }
 
 export function LiveBadge() {
   return (
-    <div style={{display:"flex",alignItems:"center",gap:6}}>
-      <span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 0 3px rgba(34,197,94,.25)"}}/>
-      <span style={{fontSize:11,fontWeight:700,color:"#86efac"}}>LIVE</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+      <span style={{
+        width: 8, height: 8, borderRadius: "50%", background: "#4ADE80",
+        boxShadow: "0 0 0 3px rgba(74,222,128,.25)", display: "inline-block",
+      }}/>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "#86EFAC" }}>LIVE</span>
+    </div>
+  );
+}
+
+export function SectionHeader({ title, count, onRefresh, action }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontWeight: 800, color: T.navy, fontSize: 14 }}>{title}</span>
+        {count !== undefined && (
+          <span style={{
+            background: T.goldPale, color: T.goldDark, border: `1px solid ${T.goldLight}`,
+            borderRadius: 999, padding: "1px 9px", fontSize: 11, fontWeight: 800,
+          }}>{count}</span>
+        )}
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {action}
+        {onRefresh && (
+          <button onClick={onRefresh} style={{
+            background: T.border, color: T.textSecond, border: "none",
+            borderRadius: 7, padding: "4px 10px", cursor: "pointer", fontSize: 11, fontWeight: 700,
+          }}>↻</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function Table({ headers, rows, emptyText = "ไม่มีข้อมูล" }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: T.navy }}>
+            {headers.map((h, i) => (
+              <th key={i} style={{
+                padding: "9px 12px", textAlign: "left",
+                color: T.white, fontWeight: 700, fontSize: 12, whiteSpace: "nowrap",
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr><td colSpan={headers.length} style={{ textAlign: "center", padding: 24, color: T.textMuted }}>{emptyText}</td></tr>
+          ) : rows.map((row, i) => (
+            <tr key={i} style={{ background: i % 2 === 0 ? T.white : "#F8FAFF" }}>
+              {row.map((cell, j) => (
+                <td key={j} style={{ padding: "9px 12px", borderBottom: `1px solid ${T.border}`, color: T.textPrimary }}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
