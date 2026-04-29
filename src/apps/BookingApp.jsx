@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { supabase, today, nowISO, auditLog } from "../lib/supabase";
 import { printBookingSlip } from "../lib/pdf";
 import { Alert, Spinner, Topbar, Card } from "../components/UI";
+import { T } from "../theme";
 
 const DOCKS = [1,2,3,4,5];
 const MIN_HOURS_AHEAD = 3; // อ่านจาก config จริงๆ ได้
@@ -101,12 +102,12 @@ export default function BookingApp({ user, onBack }) {
     loadMyBookings(); loadSlots(selectedDate);
   };
 
-  const STATUS_BG = {RESERVED:"#d1fae5",ON_YARD:"#fef9c3",CALLED_TO_DOCK:"#ffedd5",TRUCK_DOCKED:"#ede9fe",LOADING:"#dbeafe"};
+  const STATUS_BG = {RESERVED:T.greenBg,ON_YARD:T.goldPale,CALLED_TO_DOCK:T.amberBg,TRUCK_DOCKED:T.purpleBg,LOADING:T.blueBg};
 
   return (
-    <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
+    <div style={{minHeight:"100vh",background:T.bg}}>
       <Topbar title="📅 Dock Booking" color="linear-gradient(90deg,#0a2a6e,#1d4ed8)" onBack={onBack}>
-        <button onClick={()=>setShowMyBookings(p=>!p)} style={{marginLeft:8,background:"rgba(255,255,255,.15)",border:"none",color:"#fff",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>
+        <button onClick={()=>setShowMyBookings(p=>!p)} style={{marginLeft:8,background:"rgba(255,255,255,.15)",border:"none",color:T.white,borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>
           📋 My Bookings ({myBookings.length})
         </button>
       </Topbar>
@@ -117,18 +118,18 @@ export default function BookingApp({ user, onBack }) {
         {/* MY BOOKINGS */}
         {showMyBookings && (
           <Card>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:10}}>📋 My Active Bookings</div>
-            {myBookings.length===0 ? <p style={{color:"#9ca3af",fontSize:12,textAlign:"center",padding:12}}>ไม่มี Booking ที่ Active</p>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:10}}>📋 My Active Bookings</div>
+            {myBookings.length===0 ? <p style={{color:T.textMuted,fontSize:12,textAlign:"center",padding:12}}>ไม่มี Booking ที่ Active</p>
             : myBookings.map(bk=>(
-              <div key={bk.booking_id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:9,background:STATUS_BG[bk.status]||"#f8fafc",marginBottom:6,flexWrap:"wrap",gap:8}}>
+              <div key={bk.booking_id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 12px",borderRadius:9,background:STATUS_BG[bk.status]||T.bg,marginBottom:6,flexWrap:"wrap",gap:8}}>
                 <div>
                   <div style={{fontFamily:"monospace",fontWeight:700,fontSize:12}}>{bk.booking_id}</div>
-                  <div style={{fontSize:11,color:"#6b7280"}}>Dock {bk.dock_no} • {String(bk.booking_hour||"").slice(0,5)} • {bk.booking_date} • {bk.truck_plate}</div>
+                  <div style={{fontSize:11,color:T.textMuted}}>Dock {bk.dock_no} • {String(bk.booking_hour||"").slice(0,5)} • {bk.booking_date} • {bk.truck_plate}</div>
                 </div>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>printBookingSlip(bk)} style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>🖨 Print</button>
+                  <button onClick={()=>printBookingSlip(bk)} style={{background:T.border,color:T.textSecond,border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>🖨 Print</button>
                   {["RESERVED","ON_YARD"].includes(bk.status) &&
-                    <button onClick={()=>cancelBooking(bk)} style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ ยกเลิก</button>}
+                    <button onClick={()=>cancelBooking(bk)} style={{background:T.redBg,color:T.red,border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>✕ ยกเลิก</button>}
                 </div>
               </div>
             ))}
@@ -142,7 +143,7 @@ export default function BookingApp({ user, onBack }) {
             const label = d===today()?"วันนี้":d===days[1]?"พรุ่งนี้":dt.toLocaleDateString("th-TH",{weekday:"short"});
             return (
               <button key={d} onClick={()=>setSelectedDate(d)}
-                style={{border:"1.5px solid",borderColor:selectedDate===d?"#0f4bd7":"#e5e7eb",borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",background:selectedDate===d?"#0f4bd7":"#fff",color:selectedDate===d?"#fff":"#374151",textAlign:"center",minWidth:70}}>
+                style={{border:"1.5px solid",borderColor:selectedDate===d?T.navyLight:T.border,borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",background:selectedDate===d?T.navyLight:T.white,color:selectedDate===d?T.white:T.textSecond,textAlign:"center",minWidth:70}}>
                 <div style={{fontSize:10,opacity:.8}}>{label}</div>
                 <div>{dt.toLocaleDateString("th-TH",{day:"numeric",month:"short"})}</div>
               </button>
@@ -152,33 +153,33 @@ export default function BookingApp({ user, onBack }) {
 
         {/* LEGEND */}
         <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          {[["#d1fae5","#065f46","FREE"],["#fee2e2","#991b1b","FULL"],["#fde68a","#92400e","SELECTED"],["#f3f4f6","#9ca3af","ผ่านแล้ว"]].map(([bg,c,l])=>(
+          {[[T.greenBg,T.green,"FREE"],[T.redBg,T.red,"FULL"],[T.goldLight,T.goldDark,"SELECTED"],[T.bg,T.textMuted,"ผ่านแล้ว"]].map(([bg,c,l])=>(
             <span key={l} style={{background:bg,color:c,borderRadius:7,padding:"3px 9px",fontSize:11,fontWeight:700}}>{l}</span>
           ))}
         </div>
 
         {/* SLOT MATRIX */}
-        <div style={{background:"#fff",borderRadius:14,overflow:"auto",boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:12}}>
+        <div style={{background:T.white,borderRadius:14,overflow:"auto",boxShadow:T.shadow,marginBottom:12}}>
           {loading ? <div style={{padding:40,textAlign:"center"}}><Spinner/></div> : (
             <table style={{width:"100%",borderCollapse:"separate",borderSpacing:3,padding:10,minWidth:500}}>
               <thead>
                 <tr>
-                  <th style={{background:"#0a2a6e",color:"#fff",padding:"8px 12px",borderRadius:6,fontSize:11,textAlign:"center"}}>เวลา</th>
-                  {DOCKS.map(d=><th key={d} style={{background:"#0a2a6e",color:"#fff",padding:"8px 10px",borderRadius:6,fontSize:11,textAlign:"center"}}>Dock {d}</th>)}
+                  <th style={{background:T.navy,color:T.white,padding:"8px 12px",borderRadius:6,fontSize:11,textAlign:"center"}}>เวลา</th>
+                  {DOCKS.map(d=><th key={d} style={{background:T.navy,color:T.white,padding:"8px 10px",borderRadius:6,fontSize:11,textAlign:"center"}}>Dock {d}</th>)}
                 </tr>
               </thead>
               <tbody>
                 {hours.map(h=>(
                   <tr key={h}>
-                    <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,fontSize:12,color:"#374151",background:"#f8fafc",borderRadius:6}}>{h}</td>
+                    <td style={{padding:"6px 10px",textAlign:"center",fontWeight:700,fontSize:12,color:T.textSecond,background:T.bg,borderRadius:6}}>{h}</td>
                     {DOCKS.map(d=>{
                       const s = slotMap[h+"_"+d];
-                      if (!s) return <td key={d} style={{padding:3}}><div style={{background:"#f8fafc",borderRadius:7,padding:"7px 4px",textAlign:"center",color:"#9ca3af",fontSize:11}}>—</div></td>;
+                      if (!s) return <td key={d} style={{padding:3}}><div style={{background:T.bg,borderRadius:7,padding:"7px 4px",textAlign:"center",color:T.textMuted,fontSize:11}}>—</div></td>;
                       const isSel = selected?.slot_key===s.slot_key;
                       const isBooked = s.status!=="AVAILABLE";
                       const isPast = isPastSlot(s.slot_date, s.slot_hour);
-                      const bg = isSel?"#fde68a":isBooked?"#fee2e2":isPast?"#f3f4f6":"#d1fae5";
-                      const color = isSel?"#92400e":isBooked?"#991b1b":isPast?"#9ca3af":"#065f46";
+                      const bg = isSel?T.goldLight:isBooked?T.redBg:isPast?T.bg:T.greenBg;
+                      const color = isSel?T.goldDark:isBooked?T.red:isPast?T.textMuted:T.green;
                       const disabled = isBooked || isPast;
                       return (
                         <td key={d} style={{padding:3}}>
@@ -197,11 +198,11 @@ export default function BookingApp({ user, onBack }) {
         </div>
 
         {selected && !showForm && (
-          <div style={{padding:"12px 16px",background:"#ecfdf5",border:"1.5px solid #6ee7b7",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <span style={{fontWeight:700,color:"#065f46"}}>✅ Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}</span>
+          <div style={{padding:"12px 16px",background:T.greenBg,border:"1.5px solid #6ee7b7",borderRadius:10,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <span style={{fontWeight:700,color:T.green}}>✅ Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}</span>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setSelected(null)} style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>เปลี่ยน</button>
-              <button onClick={()=>setShowForm(true)} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:"6px 16px",fontWeight:700,cursor:"pointer",fontSize:12}}>กรอกข้อมูลรถ →</button>
+              <button onClick={()=>setSelected(null)} style={{background:T.border,color:T.textSecond,border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>เปลี่ยน</button>
+              <button onClick={()=>setShowForm(true)} style={{background:T.green,color:T.white,border:"none",borderRadius:8,padding:"6px 16px",fontWeight:700,cursor:"pointer",fontSize:12}}>กรอกข้อมูลรถ →</button>
             </div>
           </div>
         )}
@@ -209,9 +210,9 @@ export default function BookingApp({ user, onBack }) {
         {/* BOOKING FORM MODAL */}
         {showForm && selected && (
           <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
-            <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-              <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16,marginBottom:4}}>📋 กรอกข้อมูลรถ</div>
-              <div style={{fontSize:12,color:"#6b7280",marginBottom:16}}>Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}</div>
+            <div style={{background:T.white,borderRadius:16,padding:24,width:"100%",maxWidth:420,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+              <div style={{fontWeight:800,color:T.navy,fontSize:16,marginBottom:4}}>📋 กรอกข้อมูลรถ</div>
+              <div style={{fontSize:12,color:T.textMuted,marginBottom:16}}>Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}</div>
               {formErr && <Alert type="err" msg={formErr}/>}
               {[
                 {label:"ทะเบียนรถ *",key:"truckPlate",placeholder:"เช่น 80-1234"},
@@ -220,16 +221,16 @@ export default function BookingApp({ user, onBack }) {
                 {label:"เบอร์โทร *",key:"phone",placeholder:"08x-xxx-xxxx",type:"tel"},
               ].map(f=>(
                 <div key={f.key} style={{marginBottom:12}}>
-                  <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:"#374151"}}>{f.label}</label>
+                  <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:T.textSecond}}>{f.label}</label>
                   <input value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
                     placeholder={f.placeholder} type={f.type||"text"}
                     style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
                 </div>
               ))}
               <div style={{display:"flex",gap:8,marginTop:16}}>
-                <button onClick={()=>{setShowForm(false);setFormErr("");}} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+                <button onClick={()=>{setShowForm(false);setFormErr("");}} style={{flex:1,padding:"10px",background:T.border,color:T.textSecond,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
                 <button onClick={confirmBooking} disabled={saving}
-                  style={{flex:2,padding:"10px",background:"#059669",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
+                  style={{flex:2,padding:"10px",background:T.green,color:T.white,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
                   {saving?"กำลังจอง…":"✓ ยืนยันการจอง"}
                 </button>
               </div>
