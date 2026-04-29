@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog } from "../lib/supabase";
 import { printInboundSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
+import { T } from "../theme";
 
 const DOCKS = [1,2,3,4,5];
 
@@ -147,13 +148,13 @@ export default function SupplierApp({ user, onBack }) {
   };
 
   return (
-    <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
-      <div style={{background:"linear-gradient(90deg,#065f46,#059669)",color:"#fff",padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
-        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
+    <div style={{minHeight:"100vh",background:T.bg}}>
+      <div style={{background:"linear-gradient(90deg,#065f46,#059669)",color:T.white,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
+        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:T.white,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
         <span style={{fontWeight:800,fontSize:15}}>📦 Supplier Portal</span>
         <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.15)",borderRadius:8,padding:3,marginLeft:8}}>
           {[["create","➕ สร้าง ASN"],["myasn","📋 My ASN"],["bulk","📤 Bulk Import"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:6,padding:"4px 10px",fontWeight:700,fontSize:11,cursor:"pointer",background:tab===t?"#fff":"transparent",color:tab===t?"#065f46":"rgba(255,255,255,.8)"}}>
+            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:6,padding:"4px 10px",fontWeight:700,fontSize:11,cursor:"pointer",background:tab===t?T.white:"transparent",color:tab===t?T.green:"rgba(255,255,255,.8)"}}>
               {l}
             </button>
           ))}
@@ -165,12 +166,12 @@ export default function SupplierApp({ user, onBack }) {
 
         {/* CREATE */}
         {tab==="create" && <>
-          <div style={{background:"#fff",borderRadius:14,padding:14,marginBottom:12,boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:10}}>📅 เลือกวัน & Slot</div>
+          <div style={{background:T.white,borderRadius:14,padding:14,marginBottom:12,boxShadow:T.shadow}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:10}}>📅 เลือกวัน & Slot</div>
             <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
               {days.map(d=>{
                 const dt=new Date(d);
-                return <button key={d} onClick={()=>setSlotDate(d)} style={{border:"1.5px solid",borderColor:slotDate===d?"#059669":"#e5e7eb",borderRadius:9,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer",background:slotDate===d?"#059669":"#fff",color:slotDate===d?"#fff":"#374151",textAlign:"center",minWidth:60}}>
+                return <button key={d} onClick={()=>setSlotDate(d)} style={{border:"1.5px solid",borderColor:slotDate===d?T.green:T.border,borderRadius:9,padding:"6px 10px",fontSize:11,fontWeight:700,cursor:"pointer",background:slotDate===d?T.green:T.white,color:slotDate===d?T.white:T.textSecond,textAlign:"center",minWidth:60}}>
                   <div style={{fontSize:10,opacity:.8}}>{d===today()?"วันนี้":d===days[1]?"พรุ่งนี้":dt.toLocaleDateString("th-TH",{weekday:"short"})}</div>
                   <div>{dt.toLocaleDateString("th-TH",{day:"numeric",month:"short"})}</div>
                 </button>;
@@ -180,20 +181,20 @@ export default function SupplierApp({ user, onBack }) {
               <div style={{overflowX:"auto"}}>
                 <table style={{borderCollapse:"separate",borderSpacing:3,minWidth:400}}>
                   <thead><tr>
-                    <th style={{background:"#065f46",color:"#fff",padding:"7px 10px",borderRadius:5,fontSize:11}}>เวลา</th>
-                    {DOCKS.map(d=><th key={d} style={{background:"#065f46",color:"#fff",padding:"7px 8px",borderRadius:5,fontSize:11}}>D{d}</th>)}
+                    <th style={{background:T.green,color:T.white,padding:"7px 10px",borderRadius:5,fontSize:11}}>เวลา</th>
+                    {DOCKS.map(d=><th key={d} style={{background:T.green,color:T.white,padding:"7px 8px",borderRadius:5,fontSize:11}}>D{d}</th>)}
                   </tr></thead>
                   <tbody>{hours.map(h=>(
                     <tr key={h}>
-                      <td style={{padding:"5px 8px",textAlign:"center",fontWeight:700,fontSize:12,background:"#f8fafc",borderRadius:5}}>{h}</td>
+                      <td style={{padding:"5px 8px",textAlign:"center",fontWeight:700,fontSize:12,background:T.bg,borderRadius:5}}>{h}</td>
                       {DOCKS.map(d=>{
                         const s=slotMap[h+"_"+d];
-                        if(!s) return <td key={d} style={{padding:3}}><div style={{background:"#f8fafc",borderRadius:6,padding:"6px 4px",textAlign:"center",color:"#9ca3af",fontSize:10}}>—</div></td>;
+                        if(!s) return <td key={d} style={{padding:3}}><div style={{background:T.bg,borderRadius:6,padding:"6px 4px",textAlign:"center",color:T.textMuted,fontSize:10}}>—</div></td>;
                         const isSel=selected?.slot_key===s.slot_key;
                         const isBooked=s.status!=="AVAILABLE";
                         return <td key={d} style={{padding:3}}>
                           <button disabled={isBooked} onClick={()=>setSelected(isSel?null:s)}
-                            style={{width:"100%",padding:"6px 4px",borderRadius:6,border:"none",background:isSel?"#fde68a":isBooked?"#fee2e2":"#d1fae5",color:isSel?"#92400e":isBooked?"#991b1b":"#065f46",fontWeight:700,fontSize:10,cursor:isBooked?"not-allowed":"pointer"}}>
+                            style={{width:"100%",padding:"6px 4px",borderRadius:6,border:"none",background:isSel?T.goldLight:isBooked?T.redBg:T.greenBg,color:isSel?T.goldDark:isBooked?T.red:T.green,fontWeight:700,fontSize:10,cursor:isBooked?"not-allowed":"pointer"}}>
                             {isBooked?"FULL":"FREE"}
                           </button>
                         </td>;
@@ -204,37 +205,37 @@ export default function SupplierApp({ user, onBack }) {
               </div>
             )}
             {selected && !showForm && (
-              <div style={{marginTop:10,padding:"10px 14px",background:"#ecfdf5",border:"1.5px solid #6ee7b7",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-                <span style={{fontWeight:700,color:"#065f46"}}>✅ Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {slotDate}</span>
-                <button onClick={()=>setShowForm(true)} style={{background:"#059669",color:"#fff",border:"none",borderRadius:8,padding:"6px 14px",fontWeight:700,cursor:"pointer",fontSize:12}}>กรอกข้อมูล ASN →</button>
+              <div style={{marginTop:10,padding:"10px 14px",background:T.greenBg,border:"1.5px solid #6ee7b7",borderRadius:9,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <span style={{fontWeight:700,color:T.green}}>✅ Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {slotDate}</span>
+                <button onClick={()=>setShowForm(true)} style={{background:T.green,color:T.white,border:"none",borderRadius:8,padding:"6px 14px",fontWeight:700,cursor:"pointer",fontSize:12}}>กรอกข้อมูล ASN →</button>
               </div>
             )}
           </div>
 
           {showForm && (
-            <div style={{background:"#fff",borderRadius:14,padding:16,marginBottom:12,boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-              <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:12}}>🚛 ข้อมูลรถ</div>
+            <div style={{background:T.white,borderRadius:14,padding:16,marginBottom:12,boxShadow:T.shadow}}>
+              <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:12}}>🚛 ข้อมูลรถ</div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
                 {[{l:"Ship Date *",k:"shipDate",t:"date"},{l:"ประเภทรถ",k:"truckType",p:"6 ล้อ"},{l:"ทะเบียนรถ *",k:"truckPlate",p:"80-1234"},{l:"ชื่อคนขับ *",k:"driverName"},{l:"เบอร์โทร *",k:"driverPhone",t:"tel"},{l:"Remarks",k:"remarks"}].map(f=>(
                   <div key={f.k}>
-                    <label style={{display:"block",fontSize:11,fontWeight:700,marginBottom:4,color:"#374151"}}>{f.l}</label>
+                    <label style={{display:"block",fontSize:11,fontWeight:700,marginBottom:4,color:T.textSecond}}>{f.l}</label>
                     <input value={truck[f.k]} onChange={e=>setTruck(p=>({...p,[f.k]:e.target.value}))} type={f.t||"text"} placeholder={f.p}
                       style={{width:"100%",padding:"8px 10px",border:"1.5px solid #e5e7eb",borderRadius:9,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
                   </div>
                 ))}
               </div>
-              <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:10,display:"flex",justifyContent:"space-between"}}>
                 <span>📄 Invoices ({invoices.length})</span>
-                <button onClick={addInvoice} style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:7,padding:"4px 10px",fontWeight:700,cursor:"pointer",fontSize:11}}>+ Invoice</button>
+                <button onClick={addInvoice} style={{background:T.border,color:T.textSecond,border:"none",borderRadius:7,padding:"4px 10px",fontWeight:700,cursor:"pointer",fontSize:11}}>+ Invoice</button>
               </div>
               {invoices.map((inv,ii)=>(
                 <div key={ii} style={{border:"1.5px solid #e5e7eb",borderRadius:10,marginBottom:8,overflow:"hidden"}}>
-                  <div onClick={()=>toggleInv(ii)} style={{background:"#f8fafc",padding:"8px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-                    <span style={{background:"#065f46",color:"#fff",borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{ii+1}</span>
+                  <div onClick={()=>toggleInv(ii)} style={{background:T.bg,padding:"8px 12px",display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                    <span style={{background:T.green,color:T.white,borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800}}>{ii+1}</span>
                     <span style={{fontWeight:700,fontSize:13,flex:1}}>{inv.invoiceNo||`Invoice ${ii+1}`}</span>
-                    <span style={{fontSize:11,color:"#6b7280"}}>{inv.items.length} รายการ</span>
-                    {invoices.length>1 && <button onClick={e=>{e.stopPropagation();removeInvoice(ii);}} style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:5,padding:"2px 7px",cursor:"pointer",fontSize:11}}>✕</button>}
-                    <span style={{color:"#9ca3af"}}>{inv.open?"▲":"▼"}</span>
+                    <span style={{fontSize:11,color:T.textMuted}}>{inv.items.length} รายการ</span>
+                    {invoices.length>1 && <button onClick={e=>{e.stopPropagation();removeInvoice(ii);}} style={{background:T.redBg,color:T.red,border:"none",borderRadius:5,padding:"2px 7px",cursor:"pointer",fontSize:11}}>✕</button>}
+                    <span style={{color:T.textMuted}}>{inv.open?"▲":"▼"}</span>
                   </div>
                   {inv.open && <div style={{padding:12}}>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>
@@ -247,7 +248,7 @@ export default function SupplierApp({ user, onBack }) {
                       ))}
                     </div>
                     <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                      <thead><tr style={{background:"#f8fafc"}}>
+                      <thead><tr style={{background:T.bg}}>
                         <th style={{padding:"5px 6px",textAlign:"left"}}>#</th>
                         <th style={{padding:"5px 6px",textAlign:"left"}}>Item Code *</th>
                         <th style={{padding:"5px 6px",textAlign:"left"}}>Item Name</th>
@@ -257,24 +258,24 @@ export default function SupplierApp({ user, onBack }) {
                       </tr></thead>
                       <tbody>{inv.items.map((it,ki)=>(
                         <tr key={ki}>
-                          <td style={{padding:"3px 6px",color:"#9ca3af"}}>{ki+1}</td>
+                          <td style={{padding:"3px 6px",color:T.textMuted}}>{ki+1}</td>
                           {["itemCode","itemName","unit"].map(f=>(
                             <td key={f} style={{padding:"3px 3px"}}><input value={it[f]} onChange={e=>updateItem(ii,ki,f,e.target.value)}
                               style={{width:"100%",padding:"4px 7px",border:"1px solid #e5e7eb",borderRadius:6,fontSize:11,outline:"none"}}/></td>
                           ))}
                           <td style={{padding:"3px 3px",width:70}}><input value={it.qtyShipped} onChange={e=>updateItem(ii,ki,"qtyShipped",e.target.value)} type="number"
                             style={{width:"100%",padding:"4px 7px",border:"1px solid #e5e7eb",borderRadius:6,fontSize:11,outline:"none"}}/></td>
-                          <td style={{padding:"3px 3px"}}><button onClick={()=>removeItem(ii,ki)} style={{border:"none",background:"none",cursor:"pointer",color:"#9ca3af",fontSize:16}}>✕</button></td>
+                          <td style={{padding:"3px 3px"}}><button onClick={()=>removeItem(ii,ki)} style={{border:"none",background:"none",cursor:"pointer",color:T.textMuted,fontSize:16}}>✕</button></td>
                         </tr>
                       ))}</tbody>
                     </table>
-                    <button onClick={()=>addItem(ii)} style={{marginTop:6,background:"#e5e7eb",color:"#374151",border:"none",borderRadius:7,padding:"4px 10px",fontWeight:700,cursor:"pointer",fontSize:11}}>+ สินค้า</button>
+                    <button onClick={()=>addItem(ii)} style={{marginTop:6,background:T.border,color:T.textSecond,border:"none",borderRadius:7,padding:"4px 10px",fontWeight:700,cursor:"pointer",fontSize:11}}>+ สินค้า</button>
                   </div>}
                 </div>
               ))}
               <div style={{display:"flex",gap:8,marginTop:12}}>
-                <button onClick={()=>{setShowForm(false);setMsg(null);}} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
-                <button onClick={submitASN} disabled={saving} style={{flex:2,padding:"10px",background:"#059669",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
+                <button onClick={()=>{setShowForm(false);setMsg(null);}} style={{flex:1,padding:"10px",background:T.border,color:T.textSecond,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+                <button onClick={submitASN} disabled={saving} style={{flex:2,padding:"10px",background:T.green,color:T.white,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
                   {saving?"กำลังบันทึก…":"✓ สร้าง ASN & Booking"}
                 </button>
               </div>
@@ -284,25 +285,25 @@ export default function SupplierApp({ user, onBack }) {
 
         {/* MY ASN */}
         {tab==="myasn" && (
-          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
+          <div style={{background:T.white,borderRadius:14,overflow:"hidden",boxShadow:T.shadow}}>
             <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14}}>My ASN ({myAsns.length})</div>
-              <button onClick={loadMyAsns} style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>↻</button>
+              <div style={{fontWeight:800,color:T.navy,fontSize:14}}>My ASN ({myAsns.length})</div>
+              <button onClick={loadMyAsns} style={{background:T.border,color:T.textSecond,border:"none",borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>↻</button>
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:"#f8fafc"}}>
+                <thead><tr style={{background:T.bg}}>
                   {["ASN No","Booking ID","Ship Date","Plate","Inv","Qty","Status",""].map(h=>(
-                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#374151",whiteSpace:"nowrap"}}>{h}</th>
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.textSecond,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
-                  {myAsns.length===0 ? <tr><td colSpan={8} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>ยังไม่มี ASN</td></tr>
+                  {myAsns.length===0 ? <tr><td colSpan={8} style={{padding:24,textAlign:"center",color:T.textMuted}}>ยังไม่มี ASN</td></tr>
                   : myAsns.map(a=>(
                     <tr key={a.asn_no} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:10,fontWeight:700}}>{a.asn_no}</td>
                       <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:10}}>{a.booking_id||"—"}</td>
-                      <td style={{padding:"7px 10px",color:"#6b7280"}}>{a.ship_date}</td>
+                      <td style={{padding:"7px 10px",color:T.textMuted}}>{a.ship_date}</td>
                       <td style={{padding:"7px 10px",fontFamily:"monospace",fontWeight:700}}>{a.truck_plate}</td>
                       <td style={{padding:"7px 10px",textAlign:"center"}}>{a.invoice_count}</td>
                       <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700}}>{a.total_qty}</td>
@@ -310,7 +311,7 @@ export default function SupplierApp({ user, onBack }) {
                       <td style={{padding:"7px 6px"}}>
                         <div style={{display:"flex",gap:4"}}>
                           {!["RECEIVED","CANCELLED"].includes(a.status) &&
-                            <button onClick={()=>cancelASN(a)} style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:10,fontWeight:700}}>ยกเลิก</button>}
+                            <button onClick={()=>cancelASN(a)} style={{background:T.redBg,color:T.red,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:10,fontWeight:700}}>ยกเลิก</button>}
                         </div>
                       </td>
                     </tr>
@@ -323,21 +324,21 @@ export default function SupplierApp({ user, onBack }) {
 
         {/* BULK IMPORT */}
         {tab==="bulk" && (
-          <div style={{background:"#fff",borderRadius:14,padding:20,boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:8}}>📤 Bulk Import ASN (CSV)</div>
-            <div style={{fontSize:12,color:"#6b7280",marginBottom:12}}>
+          <div style={{background:T.white,borderRadius:14,padding:20,boxShadow:T.shadow}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:8}}>📤 Bulk Import ASN (CSV)</div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:12}}>
               CSV ต้องมี columns: <code>bookingDate, bookingHour, dockNo, shipDate, truckType, truckPlate, driverName, driverPhone, invoiceNo, invoiceDate, poNo, itemCode, itemName, unit, qty</code>
             </div>
             <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{marginBottom:12}}/>
             {bulkLoading && <Spinner/>}
             {bulkRows.length>0 && (
               <>
-                <div style={{fontSize:12,color:"#374151",marginBottom:8,fontWeight:700}}>Preview: {bulkRows.length} rows</div>
+                <div style={{fontSize:12,color:T.textSecond,marginBottom:8,fontWeight:700}}>Preview: {bulkRows.length} rows</div>
                 <div style={{overflowX:"auto",maxHeight:300,overflow:"auto",border:"1px solid #e5e7eb",borderRadius:8,marginBottom:12}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                    <thead><tr style={{background:"#f8fafc",position:"sticky",top:0}}>
+                    <thead><tr style={{background:T.bg,position:"sticky",top:0}}>
                       {Object.keys(bulkRows[0]).map(h=>(
-                        <th key={h} style={{padding:"5px 8px",textAlign:"left",fontWeight:700,color:"#374151",whiteSpace:"nowrap"}}>{h}</th>
+                        <th key={h} style={{padding:"5px 8px",textAlign:"left",fontWeight:700,color:T.textSecond,whiteSpace:"nowrap"}}>{h}</th>
                       ))}
                     </tr></thead>
                     <tbody>{bulkRows.map((r,i)=>(
@@ -350,7 +351,7 @@ export default function SupplierApp({ user, onBack }) {
                   </table>
                 </div>
                 <button onClick={submitBulk} disabled={saving}
-                  style={{background:"#059669",color:"#fff",border:"none",borderRadius:10,padding:"10px 24px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
+                  style={{background:T.green,color:T.white,border:"none",borderRadius:10,padding:"10px 24px",fontWeight:700,cursor:"pointer",fontSize:13,opacity:saving?.6:1}}>
                   {saving?`กำลัง import…`:`✓ Import ${bulkRows.length} rows`}
                 </button>
               </>
