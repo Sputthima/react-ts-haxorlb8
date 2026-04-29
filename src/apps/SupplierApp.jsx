@@ -309,7 +309,7 @@ export default function SupplierApp({ user, onBack }) {
                       <td style={{padding:"7px 10px",textAlign:"center",fontWeight:700}}>{a.total_qty}</td>
                       <td style={{padding:"7px 10px"}}><StatusBadge status={a.status} size={10}/></td>
                       <td style={{padding:"7px 6px"}}>
-                        <div style={{display:"flex",gap:4"}}>
+                        <div style={{display:"flex",gap:4}}>
                           {!["RECEIVED","CANCELLED"].includes(a.status) &&
                             <button onClick={()=>cancelASN(a)} style={{background:T.redBg,color:T.red,border:"none",borderRadius:6,padding:"3px 7px",cursor:"pointer",fontSize:10,fontWeight:700}}>ยกเลิก</button>}
                         </div>
