@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase, today, auditLog } from "../lib/supabase";
+import { supabase, today, auditLog, triggerAutoSlots } from "../lib/supabase";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 import { T } from "../theme";
 
@@ -148,6 +148,19 @@ export default function AdminApp({ user, onBack }) {
     setMsg({type:"ok",msg:`✅ สร้าง Slot ${created} รายการ | ข้าม ${skipped} (มีอยู่แล้ว)`});
     setSlotPreview(null); setSaving(false);
     await auditLog({module:"ADMIN",action:"GENERATE_SLOTS",targetType:"SLOT",targetId:"BATCH",actor:user.username,remark:`${created} slots`});
+  };
+
+  // เรียก Edge Function auto-slots โดยตรง (ใช้ config จาก DB)
+  const runAutoSlotsFunction = async () => {
+    setSaving(true); setMsg(null);
+    const result = await triggerAutoSlots();
+    if (result.success) {
+      setMsg({type:"ok",msg:`✅ Edge Function: สร้าง ${result.created} slots | ข้าม ${result.skipped}`});
+    } else {
+      setMsg({type:"err",msg:`❌ ${result.error}`});
+    }
+    setSaving(false);
+    await auditLog({module:"ADMIN",action:"AUTO_SLOT_FUNCTION",targetType:"SLOT",targetId:"EDGE",actor:user.username});
   };
 
   const clearOldSlots = async () => {
@@ -340,6 +353,19 @@ export default function AdminApp({ user, onBack }) {
                   {saving?"กำลังสร้าง…":"🗓 Generate Slots"}
                 </button>
               </div>
+            </div>
+
+            {/* AUTO SLOTS EDGE FUNCTION */}
+            <div style={{background:T.white,borderRadius:14,padding:20,boxShadow:T.shadow}}>
+              <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:6}}>⚡ Auto-Slots Edge Function</div>
+              <div style={{fontSize:12,color:T.textMuted,marginBottom:12}}>
+                รัน Edge Function <code>auto-slots</code> โดยตรง — อ่าน config จาก DB (DOCK_COUNT, SLOT_START_HOUR, SLOT_END_HOUR, SLOT_GEN_DAYS)<br/>
+                <span style={{fontSize:11,color:T.textMuted}}>Cron: ทำงานอัตโนมัติทุกวัน 01:00 น. หลัง deploy</span>
+              </div>
+              <button onClick={runAutoSlotsFunction} disabled={saving}
+                style={{padding:"9px 20px",background:T.topbarGrad,color:T.white,border:"none",borderRadius:9,fontWeight:700,cursor:"pointer",fontSize:12,opacity:saving?.6:1,marginRight:8}}>
+                ⚡ Run Auto-Slots Now
+              </button>
             </div>
 
             {/* CLEAR OLD */}
