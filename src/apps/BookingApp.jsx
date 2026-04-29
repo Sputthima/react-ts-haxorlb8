@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase, today, nowISO, auditLog } from "../lib/supabase";
+import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
 import { printBookingSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge, Modal, SectionHeader } from "../components/UI";
 import { T } from "../theme";
@@ -186,6 +186,14 @@ export default function BookingApp({ user, onBack }) {
 
     setMsg({type:"ok", msg:`✅ จอง Dock ${selected.dock_no} เวลา ${String(selected.slot_hour).slice(0,5)} สำเร็จ! (${bkId})`});
     setTimeout(()=>printBookingSlip({...payload, subcon_name:subconName, group_number:groupNumber}), 500);
+
+    // ส่ง Email แจ้งเตือน (fire & forget)
+    const emailData = { ...payload, subcon_name:subconName, group_number:groupNumber };
+    supabase.from("subcon_master").select("email").eq("subcon_code", subconCode).single()
+      .then(({ data: sc }) => {
+        const emailTo = sc?.email || user?.email;
+        if (emailTo) sendEmail({ to: emailTo, type:"booking", data: emailData });
+      }).catch(()=>{});
 
     // Reset
     setSelected(null); setShowForm(false);
