@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog } from "../lib/supabase";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
+import { T } from "../theme";
 
 export default function OBDApp({ user, onBack }) {
   const [tab, setTab] = useState("obd");
@@ -123,27 +124,27 @@ export default function OBDApp({ user, onBack }) {
     setBulkRows([]); setShowBulk(false); setCreating(false);
   };
 
-  const STATUS_COLOR={OPEN:{bg:"#d1fae5",c:"#065f46"},GROUPED:{bg:"#dbeafe",c:"#1d4ed8"},BOOKED:{bg:"#ede9fe",c:"#5b21b6"},COMPLETED:{bg:"#f3f4f6",c:"#6b7280"},CANCELLED:{bg:"#fee2e2",c:"#991b1b"}};
-  const GRP_COLOR={BOOKING_PENDING:{bg:"#fef9c3",c:"#92400e"},BOOKED:{bg:"#dbeafe",c:"#1d4ed8"},ON_YARD:{bg:"#fef9c3",c:"#854d0e"},CALLED_TO_DOCK:{bg:"#ffedd5",c:"#9a3412"},TRUCK_DOCKED:{bg:"#ede9fe",c:"#5b21b6"},LOADING:{bg:"#dbeafe",c:"#1e40af"},COMPLETED:{bg:"#f3f4f6",c:"#6b7280"}};
+  const STATUS_COLOR={OPEN:{bg:T.greenBg,c:T.green},GROUPED:{bg:T.blueBg,c:T.blue},BOOKED:{bg:T.purpleBg,c:T.purple},COMPLETED:{bg:T.bg,c:T.textMuted},CANCELLED:{bg:T.redBg,c:T.red}};
+  const GRP_COLOR={BOOKING_PENDING:{bg:T.goldPale,c:T.goldDark},BOOKED:{bg:T.blueBg,c:T.blue},ON_YARD:{bg:T.goldPale,c:T.goldDark},CALLED_TO_DOCK:{bg:T.amberBg,c:T.red},TRUCK_DOCKED:{bg:T.purpleBg,c:T.purple},LOADING:{bg:T.blueBg,c:T.navy},COMPLETED:{bg:T.bg,c:T.textMuted}};
   const toggleObd=(id)=>setSelectedObds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
   return (
-    <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
-      <div style={{background:"linear-gradient(90deg,#0a2a6e,#1d4ed8)",color:"#fff",padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
-        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
+    <div style={{minHeight:"100vh",background:T.bg}}>
+      <div style={{background:"linear-gradient(90deg,#0a2a6e,#1d4ed8)",color:T.white,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
+        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:T.white,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
         <span style={{fontWeight:800,fontSize:15}}>📦 OBD & Group</span>
         <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.1)",borderRadius:8,padding:3,marginLeft:8}}>
           {[["obd","📦 OBD"],["group","👥 Group"]].map(([t,l])=>(
-            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:6,padding:"4px 12px",fontWeight:700,fontSize:12,cursor:"pointer",background:tab===t?"#fff":"transparent",color:tab===t?"#0a2a6e":"rgba(255,255,255,.7)"}}>{l}</button>
+            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:6,padding:"4px 12px",fontWeight:700,fontSize:12,cursor:"pointer",background:tab===t?T.white:"transparent",color:tab===t?T.navy:"rgba(255,255,255,.7)"}}>{l}</button>
           ))}
         </div>
         <div style={{marginLeft:"auto",display:"flex",gap:6}}>
           {tab==="obd" && <>
-            <button onClick={()=>setShowCreate(true)} style={{background:"#22c55e",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>+ สร้าง OBD</button>
-            <label style={{background:"#0891b2",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
+            <button onClick={()=>setShowCreate(true)} style={{background:"#4ADE80",color:T.white,border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>+ สร้าง OBD</button>
+            <label style={{background:T.blue,color:T.white,border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
               📤 Import CSV <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
             </label>
-            {selectedObds.length>0 && <button onClick={()=>setShowGroup(true)} style={{background:"#f59e0b",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>👥 Group ({selectedObds.length})</button>}
+            {selectedObds.length>0 && <button onClick={()=>setShowGroup(true)} style={{background:T.gold,color:T.white,border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>👥 Group ({selectedObds.length})</button>}
           </>}
         </div>
       </div>
@@ -153,38 +154,38 @@ export default function OBDApp({ user, onBack }) {
         {loading ? <div style={{padding:40,textAlign:"center"}}><Spinner/></div> : <>
 
         {tab==="obd" && (
-          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
+          <div style={{background:T.white,borderRadius:14,overflow:"hidden",boxShadow:T.shadow}}>
             <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14}}>OBD Release <span style={{fontSize:11,color:"#6b7280",fontWeight:400}}>({obdList.length})</span></div>
-              {selectedObds.length>0 && <span style={{fontSize:11,color:"#1d4ed8",fontWeight:700}}>{selectedObds.length} เลือกแล้ว</span>}
+              <div style={{fontWeight:800,color:T.navy,fontSize:14}}>OBD Release <span style={{fontSize:11,color:T.textMuted,fontWeight:400}}>({obdList.length})</span></div>
+              {selectedObds.length>0 && <span style={{fontSize:11,color:T.blue,fontWeight:700}}>{selectedObds.length} เลือกแล้ว</span>}
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:"#f8fafc"}}>
+                <thead><tr style={{background:T.bg}}>
                   <th style={{padding:"8px 10px",width:32}}></th>
                   {["OBD No","วันที่","SubCon","Qty","Status","Group"].map(h=>(
-                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#374151"}}>{h}</th>
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.textSecond}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {obdList.length===0 ? (
-                    <tr><td colSpan={7} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>ยังไม่มี OBD</td></tr>
+                    <tr><td colSpan={7} style={{padding:24,textAlign:"center",color:T.textMuted}}>ยังไม่มี OBD</td></tr>
                   ) : obdList.map(o=>{
-                    const sc=STATUS_COLOR[o.status]||{bg:"#f3f4f6",c:"#374151"};
+                    const sc=STATUS_COLOR[o.status]||{bg:T.bg,c:T.textSecond};
                     const canSel=o.status==="OPEN";
                     const isSel=selectedObds.includes(o.obd_no);
                     return (
                       <tr key={o.obd_no} onClick={()=>canSel&&toggleObd(o.obd_no)}
-                        style={{borderBottom:"1px solid #f3f4f6",background:isSel?"#eff6ff":"#fff",cursor:canSel?"pointer":"default"}}>
+                        style={{borderBottom:"1px solid #f3f4f6",background:isSel?T.blueBg:T.white,cursor:canSel?"pointer":"default"}}>
                         <td style={{padding:"8px 10px",textAlign:"center"}}>
                           {canSel && <input type="checkbox" checked={isSel} onChange={()=>toggleObd(o.obd_no)} onClick={e=>e.stopPropagation()}/>}
                         </td>
                         <td style={{padding:"8px 10px",fontFamily:"monospace",fontWeight:700,fontSize:11}}>{o.obd_no}</td>
-                        <td style={{padding:"8px 10px",color:"#6b7280"}}>{o.release_date}</td>
+                        <td style={{padding:"8px 10px",color:T.textMuted}}>{o.release_date}</td>
                         <td style={{padding:"8px 10px",fontWeight:700}}>{o.subcon_code}</td>
                         <td style={{padding:"8px 10px",textAlign:"right",fontWeight:700}}>{o.qty}</td>
                         <td style={{padding:"8px 10px"}}><span style={{background:sc.bg,color:sc.c,borderRadius:999,padding:"2px 8px",fontSize:10,fontWeight:800}}>{o.status}</span></td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontSize:10,color:"#6b7280"}}>{o.group_number||"—"}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontSize:10,color:T.textMuted}}>{o.group_number||"—"}</td>
                       </tr>
                     );
                   })}
@@ -195,31 +196,31 @@ export default function OBDApp({ user, onBack }) {
         )}
 
         {tab==="group" && (
-          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:"#0a2a6e",fontSize:14}}>
-              Groups <span style={{fontSize:11,color:"#6b7280",fontWeight:400}}>({groups.length})</span>
+          <div style={{background:T.white,borderRadius:14,overflow:"hidden",boxShadow:T.shadow}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:T.navy,fontSize:14}}>
+              Groups <span style={{fontSize:11,color:T.textMuted,fontWeight:400}}>({groups.length})</span>
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:"#f8fafc"}}>
+                <thead><tr style={{background:T.bg}}>
                   {["Group No","SubCon","วันที่","OBD","Qty","Status","Booking"].map(h=>(
-                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:"#374151",whiteSpace:"nowrap"}}>{h}</th>
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.textSecond,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {groups.length===0 ? (
-                    <tr><td colSpan={7} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>ยังไม่มี Group</td></tr>
+                    <tr><td colSpan={7} style={{padding:24,textAlign:"center",color:T.textMuted}}>ยังไม่มี Group</td></tr>
                   ) : groups.map(g=>{
-                    const gc=GRP_COLOR[g.status]||{bg:"#f3f4f6",c:"#374151"};
+                    const gc=GRP_COLOR[g.status]||{bg:T.bg,c:T.textSecond};
                     return (
                       <tr key={g.group_number} style={{borderBottom:"1px solid #f3f4f6"}}>
                         <td style={{padding:"8px 10px",fontFamily:"monospace",fontWeight:700,fontSize:11}}>{g.group_number}</td>
                         <td style={{padding:"8px 10px",fontWeight:700}}>{g.subcon_code}</td>
-                        <td style={{padding:"8px 10px",color:"#6b7280"}}>{g.group_date}</td>
+                        <td style={{padding:"8px 10px",color:T.textMuted}}>{g.group_date}</td>
                         <td style={{padding:"8px 10px",textAlign:"center"}}>{g.total_obd}</td>
                         <td style={{padding:"8px 10px",textAlign:"center",fontWeight:700}}>{g.total_qty}</td>
                         <td style={{padding:"8px 10px"}}><span style={{background:gc.bg,color:gc.c,borderRadius:999,padding:"2px 8px",fontSize:10,fontWeight:800}}>{g.status}</span></td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontSize:10,color:"#6b7280"}}>{g.booking_id||"—"}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontSize:10,color:T.textMuted}}>{g.booking_id||"—"}</td>
                       </tr>
                     );
                   })}
@@ -234,17 +235,17 @@ export default function OBDApp({ user, onBack }) {
       {/* CREATE OBD MODAL */}
       {showCreate && (
         <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
-          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16,marginBottom:16}}>📦 สร้าง OBD Release</div>
+          <div style={{background:T.white,borderRadius:16,padding:24,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:16,marginBottom:16}}>📦 สร้าง OBD Release</div>
             {[{label:"วันที่ *",key:"releaseDate",type:"date"},{label:"Qty *",key:"qty",type:"number",placeholder:"จำนวน"},{label:"Lines",key:"lineCount",type:"number",placeholder:"จำนวน Line"}].map(f=>(
               <div key={f.key} style={{marginBottom:12}}>
-                <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:"#374151"}}>{f.label}</label>
+                <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:T.textSecond}}>{f.label}</label>
                 <input value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} type={f.type} placeholder={f.placeholder}
                   style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:13,outline:"none",boxSizing:"border-box"}}/>
               </div>
             ))}
             <div style={{marginBottom:12}}>
-              <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:"#374151"}}>SubCon *</label>
+              <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:T.textSecond}}>SubCon *</label>
               <select value={form.subConCode} onChange={e=>setForm(p=>({...p,subConCode:e.target.value}))}
                 style={{width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:13,outline:"none",boxSizing:"border-box"}}>
                 <option value="">-- เลือก SubCon --</option>
@@ -252,8 +253,8 @@ export default function OBDApp({ user, onBack }) {
               </select>
             </div>
             <div style={{display:"flex",gap:8,marginTop:16}}>
-              <button onClick={()=>setShowCreate(false)} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
-              <button onClick={createOBD} disabled={creating} style={{flex:2,padding:"10px",background:"#0f4bd7",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
+              <button onClick={()=>setShowCreate(false)} style={{flex:1,padding:"10px",background:T.border,color:T.textSecond,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+              <button onClick={createOBD} disabled={creating} style={{flex:2,padding:"10px",background:T.navyLight,color:T.white,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
                 {creating?"กำลังสร้าง…":"✓ สร้าง OBD"}
               </button>
             </div>
@@ -264,17 +265,17 @@ export default function OBDApp({ user, onBack }) {
       {/* GROUP MODAL */}
       {showGroup && (
         <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
-          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16,marginBottom:8}}>👥 สร้าง Group</div>
-            <div style={{fontSize:12,color:"#6b7280",marginBottom:16}}>{selectedObds.length} OBD — รวม {selectedObds.reduce((s,id)=>{const o=obdList.find(x=>x.obd_no===id);return s+(o?.qty||0);},0)} units</div>
+          <div style={{background:T.white,borderRadius:16,padding:24,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:16,marginBottom:8}}>👥 สร้าง Group</div>
+            <div style={{fontSize:12,color:T.textMuted,marginBottom:16}}>{selectedObds.length} OBD — รวม {selectedObds.reduce((s,id)=>{const o=obdList.find(x=>x.obd_no===id);return s+(o?.qty||0);},0)} units</div>
             <div style={{maxHeight:200,overflowY:"auto",marginBottom:16}}>
               {selectedObds.map(id=>{const o=obdList.find(x=>x.obd_no===id);return(
-                <div key={id} style={{padding:"6px 10px",background:"#f0f4fb",borderRadius:8,marginBottom:6,fontSize:12,fontFamily:"monospace",fontWeight:700}}>{id} <span style={{color:"#6b7280",fontWeight:400}}>({o?.qty})</span></div>
+                <div key={id} style={{padding:"6px 10px",background:T.bg,borderRadius:8,marginBottom:6,fontSize:12,fontFamily:"monospace",fontWeight:700}}>{id} <span style={{color:T.textMuted,fontWeight:400}}>({o?.qty})</span></div>
               );})}
             </div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowGroup(false)} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
-              <button onClick={createGroup} disabled={creating} style={{flex:2,padding:"10px",background:"#f59e0b",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
+              <button onClick={()=>setShowGroup(false)} style={{flex:1,padding:"10px",background:T.border,color:T.textSecond,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+              <button onClick={createGroup} disabled={creating} style={{flex:2,padding:"10px",background:T.gold,color:T.white,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
                 {creating?"กำลังสร้าง…":"✓ สร้าง Group"}
               </button>
             </div>
@@ -285,12 +286,12 @@ export default function OBDApp({ user, onBack }) {
       {/* BULK PREVIEW MODAL */}
       {showBulk && bulkRows.length>0 && (
         <div style={{position:"fixed",inset:0,background:"rgba(10,20,50,.6)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:999,padding:16}}>
-          <div style={{background:"#fff",borderRadius:16,padding:24,width:"100%",maxWidth:700,maxHeight:"80vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16,marginBottom:12}}>📤 Preview: {bulkRows.length} rows</div>
+          <div style={{background:T.white,borderRadius:16,padding:24,width:"100%",maxWidth:700,maxHeight:"80vh",overflow:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:16,marginBottom:12}}>📤 Preview: {bulkRows.length} rows</div>
             <div style={{overflowX:"auto",maxHeight:300,border:"1px solid #e5e7eb",borderRadius:8,marginBottom:16}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
-                <thead><tr style={{background:"#f8fafc",position:"sticky",top:0}}>
-                  {Object.keys(bulkRows[0]).map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontWeight:700,color:"#374151",whiteSpace:"nowrap"}}>{h}</th>)}
+                <thead><tr style={{background:T.bg,position:"sticky",top:0}}>
+                  {Object.keys(bulkRows[0]).map(h=><th key={h} style={{padding:"5px 8px",textAlign:"left",fontWeight:700,color:T.textSecond,whiteSpace:"nowrap"}}>{h}</th>)}
                 </tr></thead>
                 <tbody>{bulkRows.map((r,i)=>(
                   <tr key={i} style={{borderBottom:"1px solid #f3f4f6"}}>
@@ -299,10 +300,10 @@ export default function OBDApp({ user, onBack }) {
                 ))}</tbody>
               </table>
             </div>
-            <div style={{fontSize:11,color:"#6b7280",marginBottom:12}}>CSV ต้องมี columns: obdNo, subConCode, releaseDate, qty, lineCount, remarks</div>
+            <div style={{fontSize:11,color:T.textMuted,marginBottom:12}}>CSV ต้องมี columns: obdNo, subConCode, releaseDate, qty, lineCount, remarks</div>
             <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowBulk(false)} style={{flex:1,padding:"10px",background:"#e5e7eb",color:"#374151",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
-              <button onClick={submitBulk} disabled={creating} style={{flex:2,padding:"10px",background:"#0891b2",color:"#fff",border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
+              <button onClick={()=>setShowBulk(false)} style={{flex:1,padding:"10px",background:T.border,color:T.textSecond,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13}}>ยกเลิก</button>
+              <button onClick={submitBulk} disabled={creating} style={{flex:2,padding:"10px",background:T.blue,color:T.white,border:"none",borderRadius:10,fontWeight:700,cursor:"pointer",fontSize:13,opacity:creating?.6:1}}>
                 {creating?`กำลัง import…`:`✓ Import ${bulkRows.length} OBD`}
               </button>
             </div>
