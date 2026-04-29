@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase, today } from "../lib/supabase";
 import { Spinner, StatusBadge, Alert } from "../components/UI";
+import { T } from "../theme";
 
 export default function ManagerApp({ user, onBack }) {
   const [tab, setTab] = useState("outbound");
@@ -148,27 +149,27 @@ export default function ManagerApp({ user, onBack }) {
   },[tab,selectedDate,loadOutbound,loadInbound]);
 
   const DOCK_ICO={EMPTY:"□",ON_YARD:"🅿️",CALLED_TO_DOCK:"📢",TRUCK_DOCKED:"🚛",LOADING:"⬆️",UNLOADING:"⬇️"};
-  const DOCK_BG={EMPTY:"#f8fafc",ON_YARD:"#fef9c3",CALLED_TO_DOCK:"#ffedd5",TRUCK_DOCKED:"#ede9fe",LOADING:"#dbeafe",UNLOADING:"#dbeafe"};
+  const DOCK_BG={EMPTY:T.bg,ON_YARD:T.goldPale,CALLED_TO_DOCK:T.amberBg,TRUCK_DOCKED:T.purpleBg,LOADING:T.blueBg,UNLOADING:T.blueBg};
 
   return (
-    <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
-      <div style={{background:"linear-gradient(90deg,#0a2a6e,#1e3a8a,#1d4ed8)",color:"#fff",padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
-        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:"#fff",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
+    <div style={{minHeight:"100vh",background:T.bg}}>
+      <div style={{background:"linear-gradient(90deg,#0a2a6e,#1e3a8a,#1d4ed8)",color:T.white,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap",position:"sticky",top:0,zIndex:40}}>
+        <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:T.white,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
         <span style={{fontWeight:800,fontSize:15}}>📊 Manager Dashboard</span>
         <div style={{display:"flex",gap:4,background:"rgba(255,255,255,.12)",borderRadius:9,padding:3,marginLeft:8}}>
           {["outbound","inbound"].map(t=>(
-            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",background:tab===t?"#fff":"transparent",color:tab===t?"#0a2a6e":"rgba(255,255,255,.7)"}}>
+            <button key={t} onClick={()=>setTab(t)} style={{border:"none",borderRadius:7,padding:"5px 12px",fontWeight:700,fontSize:12,cursor:"pointer",background:tab===t?T.white:"transparent",color:tab===t?T.navy:"rgba(255,255,255,.7)"}}>
               {t==="outbound"?"📤 Outbound":"📥 Inbound"}
             </button>
           ))}
         </div>
         {tab==="outbound" && (
           <input type="date" value={selectedDate} onChange={e=>setSelectedDate(e.target.value)}
-            style={{marginLeft:8,padding:"4px 8px",borderRadius:7,border:"none",fontSize:12,background:"rgba(255,255,255,.15)",color:"#fff"}}/>
+            style={{marginLeft:8,padding:"4px 8px",borderRadius:7,border:"none",fontSize:12,background:"rgba(255,255,255,.15)",color:T.white}}/>
         )}
         <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
-          <span style={{width:8,height:8,borderRadius:"50%",background:"#22c55e",display:"inline-block",boxShadow:"0 0 0 3px rgba(34,197,94,.25)"}}/>
-          <span style={{fontSize:11,fontWeight:700,color:"#86efac"}}>LIVE</span>
+          <span style={{width:8,height:8,borderRadius:"50%",background:"#4ADE80",display:"inline-block",boxShadow:"0 0 0 3px rgba(34,197,94,.25)"}}/>
+          <span style={{fontSize:11,fontWeight:700,color:"#86EFAC"}}>LIVE</span>
         </div>
       </div>
 
@@ -185,33 +186,33 @@ export default function ManagerApp({ user, onBack }) {
           {/* KPI CARDS */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:14}}>
             {[
-              {label:"Booked",value:data.kpi.bookedToday,color:"#0f4bd7"},
-              {label:"On Yard",value:data.kpi.onYard,color:"#92400e"},
-              {label:"At Dock",value:data.kpi.atDock,color:"#5b21b6"},
-              {label:"Completed",value:data.kpi.completed,color:"#166534"},
-              {label:"On-time",value:data.kpi.onTimeRate!=null?`${data.kpi.onTimeRate}%`:"—",color:"#059669"},
-              {label:"SLA Breach",value:data.kpi.slaBreached,color:data.kpi.slaBreached>0?"#dc2626":"#166534"},
-              {label:"OBD Open",value:data.kpi.obdOpen,color:data.kpi.obdOpen>0?"#d97706":"#166534"},
+              {label:"Booked",value:data.kpi.bookedToday,color:T.navyLight},
+              {label:"On Yard",value:data.kpi.onYard,color:T.goldDark},
+              {label:"At Dock",value:data.kpi.atDock,color:T.purple},
+              {label:"Completed",value:data.kpi.completed,color:T.green},
+              {label:"On-time",value:data.kpi.onTimeRate!=null?`${data.kpi.onTimeRate}%`:"—",color:T.green},
+              {label:"SLA Breach",value:data.kpi.slaBreached,color:data.kpi.slaBreached>0?T.red:T.green},
+              {label:"OBD Open",value:data.kpi.obdOpen,color:data.kpi.obdOpen>0?T.gold:T.green},
             ].map(k=>(
-              <div key={k.label} style={{background:"#fff",borderRadius:14,padding:"14px 16px",boxShadow:"0 4px 20px rgba(0,0,0,.07)",borderLeft:`4px solid ${k.color}`}}>
+              <div key={k.label} style={{background:T.white,borderRadius:14,padding:"14px 16px",boxShadow:T.shadow,borderLeft:`4px solid ${k.color}`}}>
                 <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.value}</div>
-                <div style={{fontSize:11,color:"#6b7280",fontWeight:600,marginTop:3}}>{k.label}</div>
+                <div style={{fontSize:11,color:T.textMuted,fontWeight:600,marginTop:3}}>{k.label}</div>
               </div>
             ))}
           </div>
 
           {/* DOCK GRID */}
-          <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:12}}>🏭 Dock Status</div>
+          <div style={{background:T.white,borderRadius:14,padding:16,boxShadow:T.shadow,marginBottom:14}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:12}}>🏭 Dock Status</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
               {data.docks.map(dk=>{
                 const st=dk.booking?.status||"EMPTY";
                 return (
-                  <div key={dk.dockNo} style={{background:DOCK_BG[st]||"#f8fafc",borderRadius:12,padding:"12px 10px",textAlign:"center",position:"relative",border:"1.5px solid #e5e7eb"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:"#9ca3af",position:"absolute",top:5,left:8}}>D{dk.dockNo}</div>
+                  <div key={dk.dockNo} style={{background:DOCK_BG[st]||T.bg,borderRadius:12,padding:"12px 10px",textAlign:"center",position:"relative",border:"1.5px solid #e5e7eb"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:T.textMuted,position:"absolute",top:5,left:8}}>D{dk.dockNo}</div>
                     <div style={{fontSize:24}}>{DOCK_ICO[st]||"□"}</div>
                     {dk.booking?.truck_plate && <div style={{fontSize:11,fontWeight:800,fontFamily:"monospace",marginTop:4}}>{dk.booking.truck_plate}</div>}
-                    {dk.booking?.booking_hour && <div style={{fontSize:10,color:"#6b7280"}}>{String(dk.booking.booking_hour).slice(0,5)}</div>}
+                    {dk.booking?.booking_hour && <div style={{fontSize:10,color:T.textMuted}}>{String(dk.booking.booking_hour).slice(0,5)}</div>}
                     <StatusBadge status={st} size={9}/>
                   </div>
                 );
@@ -220,39 +221,39 @@ export default function ManagerApp({ user, onBack }) {
           </div>
 
           {/* TIMELINE */}
-          <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:12}}>📅 Slot Timeline</div>
+          <div style={{background:T.white,borderRadius:14,padding:16,boxShadow:T.shadow,marginBottom:14}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:12}}>📅 Slot Timeline</div>
             <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
               {data.timeline.map(tl=>(
                 <div key={tl.hour} style={{flex:"0 0 auto",minWidth:60,textAlign:"center"}}>
-                  <div style={{fontSize:10,color:"#6b7280",marginBottom:4}}>{tl.hour}</div>
-                  <div style={{background:"#e5e7eb",borderRadius:6,overflow:"hidden",height:40,position:"relative"}}>
-                    <div style={{position:"absolute",bottom:0,left:0,right:0,height:`${tl.total>0?Math.round(tl.booked/tl.total*100):0}%`,background:"#0f4bd7",borderRadius:"0 0 6px 6px"}}/>
+                  <div style={{fontSize:10,color:T.textMuted,marginBottom:4}}>{tl.hour}</div>
+                  <div style={{background:T.border,borderRadius:6,overflow:"hidden",height:40,position:"relative"}}>
+                    <div style={{position:"absolute",bottom:0,left:0,right:0,height:`${tl.total>0?Math.round(tl.booked/tl.total*100):0}%`,background:T.navyLight,borderRadius:"0 0 6px 6px"}}/>
                   </div>
-                  <div style={{fontSize:10,color:"#374151",marginTop:3,fontWeight:700}}>{tl.booked}/{tl.total}</div>
+                  <div style={{fontSize:10,color:T.textSecond,marginTop:3,fontWeight:700}}>{tl.booked}/{tl.total}</div>
                 </div>
               ))}
             </div>
           </div>
 
           {/* SUBCON BREAKDOWN */}
-          <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:12}}>🏢 SubCon Breakdown</div>
+          <div style={{background:T.white,borderRadius:14,padding:16,boxShadow:T.shadow,marginBottom:14}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:12}}>🏢 SubCon Breakdown</div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:"#f8fafc"}}>
+                <thead><tr style={{background:T.bg}}>
                   {["SubCon","Open","Grouped","Booked","Completed"].map(h=>(
-                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:700,color:"#374151"}}>{h}</th>
+                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:700,color:T.textSecond}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {data.subconBreakdown.map(sc=>(
                     <tr key={sc.subcon_code} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td style={{padding:"7px 10px",fontWeight:700}}>{sc.subcon_code}</td>
-                      <td style={{padding:"7px 10px",color:sc.open>0?"#d97706":"#9ca3af",fontWeight:700}}>{sc.open}</td>
-                      <td style={{padding:"7px 10px",color:"#1d4ed8",fontWeight:700}}>{sc.grouped}</td>
-                      <td style={{padding:"7px 10px",color:"#5b21b6",fontWeight:700}}>{sc.booked}</td>
-                      <td style={{padding:"7px 10px",color:"#166534",fontWeight:700}}>{sc.completed}</td>
+                      <td style={{padding:"7px 10px",color:sc.open>0?T.gold:T.textMuted,fontWeight:700}}>{sc.open}</td>
+                      <td style={{padding:"7px 10px",color:T.blue,fontWeight:700}}>{sc.grouped}</td>
+                      <td style={{padding:"7px 10px",color:T.purple,fontWeight:700}}>{sc.booked}</td>
+                      <td style={{padding:"7px 10px",color:T.green,fontWeight:700}}>{sc.completed}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -261,14 +262,14 @@ export default function ManagerApp({ user, onBack }) {
           </div>
 
           {/* QUEUE SUMMARY */}
-          <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:10}}>🔔 Queue Summary</div>
+          <div style={{background:T.white,borderRadius:14,padding:16,boxShadow:T.shadow}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:10}}>🔔 Queue Summary</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
               {[
-                {label:"รอ",val:data.qSummary.waiting,bg:"#dbeafe",c:"#1d4ed8"},
-                {label:"กำลังเรียก",val:data.qSummary.calling,bg:"#fef3c7",c:"#92400e"},
-                {label:"เสร็จ",val:data.qSummary.completed,bg:"#dcfce7",c:"#166534"},
-                {label:"Skip",val:data.qSummary.skipped,bg:"#f3f4f6",c:"#374151"},
+                {label:"รอ",val:data.qSummary.waiting,bg:T.blueBg,c:T.blue},
+                {label:"กำลังเรียก",val:data.qSummary.calling,bg:T.goldPale,c:T.goldDark},
+                {label:"เสร็จ",val:data.qSummary.completed,bg:T.greenBg,c:T.green},
+                {label:"Skip",val:data.qSummary.skipped,bg:T.bg,c:T.textSecond},
               ].map(s=>(
                 <div key={s.label} style={{background:s.bg,borderRadius:10,padding:"10px",textAlign:"center"}}>
                   <div style={{fontSize:22,fontWeight:900,color:s.c}}>{s.val}</div>
@@ -283,31 +284,31 @@ export default function ManagerApp({ user, onBack }) {
         {tab==="inbound" && inbound && <>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:14}}>
             {[
-              {label:"Booking วันนี้",value:inbound.kpi.todayTotal,color:"#0f4bd7"},
-              {label:"รอ Check-in",value:inbound.kpi.reserved,color:"#6b7280"},
-              {label:"On Yard",value:inbound.kpi.onYard,color:"#92400e"},
-              {label:"At Dock/ขนลง",value:inbound.kpi.atDock,color:"#5b21b6"},
-              {label:"รอ GR",value:inbound.kpi.grPending,color:"#d97706"},
-              {label:"GR เสร็จวันนี้",value:inbound.kpi.completedToday,color:"#166534"},
+              {label:"Booking วันนี้",value:inbound.kpi.todayTotal,color:T.navyLight},
+              {label:"รอ Check-in",value:inbound.kpi.reserved,color:T.textMuted},
+              {label:"On Yard",value:inbound.kpi.onYard,color:T.goldDark},
+              {label:"At Dock/ขนลง",value:inbound.kpi.atDock,color:T.purple},
+              {label:"รอ GR",value:inbound.kpi.grPending,color:T.gold},
+              {label:"GR เสร็จวันนี้",value:inbound.kpi.completedToday,color:T.green},
             ].map(k=>(
-              <div key={k.label} style={{background:"#fff",borderRadius:14,padding:"14px 16px",boxShadow:"0 4px 20px rgba(0,0,0,.07)",borderLeft:`4px solid ${k.color}`}}>
+              <div key={k.label} style={{background:T.white,borderRadius:14,padding:"14px 16px",boxShadow:T.shadow,borderLeft:`4px solid ${k.color}`}}>
                 <div style={{fontSize:24,fontWeight:900,color:k.color}}>{k.value}</div>
-                <div style={{fontSize:11,color:"#6b7280",fontWeight:600,marginTop:3}}>{k.label}</div>
+                <div style={{fontSize:11,color:T.textMuted,fontWeight:600,marginTop:3}}>{k.label}</div>
               </div>
             ))}
           </div>
 
-          <div style={{background:"#fff",borderRadius:14,padding:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14}}>
-            <div style={{fontWeight:800,color:"#0a2a6e",fontSize:14,marginBottom:12}}>🏭 Inbound Dock Status</div>
+          <div style={{background:T.white,borderRadius:14,padding:16,boxShadow:T.shadow,marginBottom:14}}>
+            <div style={{fontWeight:800,color:T.navy,fontSize:14,marginBottom:12}}>🏭 Inbound Dock Status</div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
               {inbound.docks.map(dk=>{
                 const st=dk.booking?.status||"EMPTY";
                 return (
-                  <div key={dk.dockNo} style={{background:DOCK_BG[st]||"#f8fafc",borderRadius:12,padding:"12px 10px",textAlign:"center",position:"relative",border:"1.5px solid #e5e7eb"}}>
-                    <div style={{fontSize:9,fontWeight:700,color:"#9ca3af",position:"absolute",top:5,left:8}}>D{dk.dockNo}</div>
+                  <div key={dk.dockNo} style={{background:DOCK_BG[st]||T.bg,borderRadius:12,padding:"12px 10px",textAlign:"center",position:"relative",border:"1.5px solid #e5e7eb"}}>
+                    <div style={{fontSize:9,fontWeight:700,color:T.textMuted,position:"absolute",top:5,left:8}}>D{dk.dockNo}</div>
                     <div style={{fontSize:24}}>{DOCK_ICO[st]||"□"}</div>
                     {dk.booking?.truck_plate && <div style={{fontSize:11,fontWeight:800,fontFamily:"monospace",marginTop:4}}>{dk.booking.truck_plate}</div>}
-                    {dk.asn?.supplier_code && <div style={{fontSize:10,color:"#6b7280"}}>{dk.asn.supplier_code}</div>}
+                    {dk.asn?.supplier_code && <div style={{fontSize:10,color:T.textMuted}}>{dk.asn.supplier_code}</div>}
                     <StatusBadge status={st} size={9}/>
                   </div>
                 );
@@ -315,20 +316,20 @@ export default function ManagerApp({ user, onBack }) {
             </div>
           </div>
 
-          <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)"}}>
-            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:"#0a2a6e",fontSize:14}}>
+          <div style={{background:T.white,borderRadius:14,overflow:"hidden",boxShadow:T.shadow}}>
+            <div style={{padding:"12px 16px",borderBottom:"1px solid #e5e7eb",fontWeight:800,color:T.navy,fontSize:14}}>
               📋 Active Inbound ({inbound.activeRows.length})
             </div>
             <div style={{overflowX:"auto"}}>
               <table style={{width:"100%",borderCollapse:"collapse",fontSize:12}}>
-                <thead><tr style={{background:"#f8fafc"}}>
+                <thead><tr style={{background:T.bg}}>
                   {["Booking ID","ASN","Supplier","Dock","เวลา","Plate","Check-in","Status"].map(h=>(
-                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:700,color:"#374151",whiteSpace:"nowrap"}}>{h}</th>
+                    <th key={h} style={{padding:"7px 10px",textAlign:"left",fontWeight:700,color:T.textSecond,whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr></thead>
                 <tbody>
                   {inbound.activeRows.length===0 ? (
-                    <tr><td colSpan={8} style={{padding:24,textAlign:"center",color:"#9ca3af"}}>ไม่มี Active Inbound</td></tr>
+                    <tr><td colSpan={8} style={{padding:24,textAlign:"center",color:T.textMuted}}>ไม่มี Active Inbound</td></tr>
                   ) : inbound.activeRows.map(b=>(
                     <tr key={b.booking_id} style={{borderBottom:"1px solid #f3f4f6"}}>
                       <td style={{padding:"7px 10px",fontFamily:"monospace",fontSize:10,fontWeight:700}}>{b.booking_id}</td>
@@ -337,7 +338,7 @@ export default function ManagerApp({ user, onBack }) {
                       <td style={{padding:"7px 10px",fontWeight:700}}>D{b.dock_no}</td>
                       <td style={{padding:"7px 10px",fontWeight:700}}>{String(b.booking_hour||"").slice(0,5)}</td>
                       <td style={{padding:"7px 10px",fontFamily:"monospace"}}>{b.truck_plate}</td>
-                      <td style={{padding:"7px 10px",color:b.check_in_time?"#16a34a":"#9ca3af",fontWeight:700}}>
+                      <td style={{padding:"7px 10px",color:b.check_in_time?T.green:T.textMuted,fontWeight:700}}>
                         {b.check_in_time?new Date(b.check_in_time).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"}):"—"}
                       </td>
                       <td style={{padding:"7px 10px"}}><StatusBadge status={b.status}/></td>
