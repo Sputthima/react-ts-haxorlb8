@@ -141,7 +141,7 @@ export default function QueueApp({ user, onBack }) {
         <button onClick={onBack} style={{border:"1px solid rgba(255,255,255,.2)",background:"transparent",color:T.white,borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12}}>← Back</button>
         <span style={{fontWeight:800,fontSize:15}}>🔔 Queue Operator</span>
         <button onClick={openTV} style={{background:"rgba(255,255,255,.15)",border:"none",color:T.white,borderRadius:7,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700}}>📺 TV Display</button>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto",background:"rgba(255,255,255,.15)",borderRadius:8,padding:"4px 10px",flexWrap:"wrap",gap:8}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto",background:"rgba(255,255,255,.15)",borderRadius:8,padding:"4px 10px",flexWrap:"wrap"}}>
           <span style={{fontSize:11,fontWeight:700}}>TTS Speed:</span>
           <input type="range" min="0.5" max="1.2" step="0.05" value={voiceRate} onChange={e=>setVoiceRate(+e.target.value)} style={{width:70}}/>
           <span style={{fontSize:11,fontWeight:700,minWidth:24}}>{voiceRate}</span>
