@@ -105,8 +105,8 @@ export default function QueueApp({ user, onBack }) {
       .join("").replace(/-/g," ขีด ").trim();
     const dock = String(row.dock_no||"").split("").join(" ");
     const txt = isRecall
-      ? `เรียกซ้ำครั้งที่ ${count} ทะเบียน ${plate} กรุณาเข้า ด็อก ${dock} ด่วน`
-      : `เรียนคุณ ${row.driver_name||""} ทะเบียน ${plate} กรุณานำรถเข้า ด็อก ${dock} ได้เลยครับ`;
+      ? `เรียกซ้ำครั้งที่ ${count} ทะเบียน ${plate} กรุณาเข้า ช่องโหลดที่ ${dock} ด่วน`
+      : `เรียนคุณ ${row.driver_name||""} ทะเบียน ${plate} กรุณานำรถเข้า ช่องโหลดที่ ${dock} ได้เลยครับ`;
 
     window.speechSynthesis.cancel();
     let i = 0;
