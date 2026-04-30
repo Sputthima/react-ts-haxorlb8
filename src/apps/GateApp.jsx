@@ -1,59 +1,120 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase, today, nowISO, auditLog } from "../lib/supabase";
-import { Alert, Spinner, StatusBadge, SectionHeader, Card, Table } from "../components/UI";
+import { Alert, Spinner, StatusBadge, SectionHeader } from "../components/UI";
 import { T, BTN } from "../theme";
+
+// ── Status flows ──────────────────────────────────────────────────────────
+// TRUCK:  RESERVED → ON_YARD → CALLED_TO_DOCK → TRUCK_DOCKED → LOADING → COMPLETED
+// ORDER:  ORDER_CREATED → PICKING → READY_FOR_LOADING → (LOADING via startLoading) → COMPLETED
 
 const GATE_ACTIONS = {
   RESERVED:       { label: "✓ Check-in เข้า Yard", next: "ON_YARD",        color: T.green  },
   ON_YARD:        { label: "📢 Call to Dock",        next: "CALLED_TO_DOCK", color: T.amber  },
   CALLED_TO_DOCK: { label: "🚛 Confirm Docked",      next: "TRUCK_DOCKED",   color: T.purple },
-  TRUCK_DOCKED:   { label: "⬆ Start Loading",        next: "LOADING",        color: T.blue   },
-  LOADING:        { label: "✓ Complete & Release",   next: "COMPLETED",      color: T.green  },
+  // TRUCK_DOCKED → LOADING handled by startLoading_ (requires READY_FOR_LOADING)
+  // LOADING → COMPLETED handled by releaseDock_
 };
 
 const ORDER_ACTIONS = {
-  ORDER_CREATED:     { label: "เริ่ม Picking",     next: "PICKING",           color: T.blue   },
-  PICKING:           { label: "Ready for Loading", next: "READY_FOR_LOADING", color: T.purple },
+  ORDER_CREATED: { label: "เริ่ม Picking",     next: "PICKING",           color: T.blue   },
+  PICKING:       { label: "Ready for Loading", next: "READY_FOR_LOADING", color: T.purple },
   READY_FOR_LOADING: null,
   LOADING:           null,
   COMPLETED:         null,
 };
 
 const ALLOWED_ORDER_STATUSES = ["PICKING", "READY_FOR_LOADING"];
-const BLOCKED_ORDER_STATUSES = ["BOOKING_PENDING", "COMPLETED"];
+// ชีวิตจริง: สร้าง order ได้ตั้งแต่ BOOKED (ก่อน truck check-in)
+const BLOCKED_ORDER_STATUSES = ["COMPLETED"];
 const GROUP_SYNC_STATUSES    = ["ON_YARD", "CALLED_TO_DOCK", "TRUCK_DOCKED"];
+
+// Truck status ที่แสดงใน Active list
+const ACTIVE_TRUCK_STATUSES = ["RESERVED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"];
+
+const TRUCK_STEPS = ["BOOKED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING","COMPLETED"];
+const ORDER_STEPS = ["ORDER_CREATED","PICKING","READY_FOR_LOADING","COMPLETED"];
 
 const STATUS_BG = {
   ON_YARD: "#FEF9C3", CALLED_TO_DOCK: "#FFF7ED",
-  TRUCK_DOCKED: "#F5F3FF", LOADING: "#EFF6FF", RESERVED: T.bg,
+  TRUCK_DOCKED: "#F5F3FF", LOADING: "#EFF6FF",
+  RESERVED: T.bg, BOOKED: T.greenBg,
 };
 const STATUS_BL = {
   ON_YARD: T.amber, CALLED_TO_DOCK: T.amber,
-  TRUCK_DOCKED: T.purple, LOADING: T.blue, RESERVED: T.border,
+  TRUCK_DOCKED: T.purple, LOADING: T.blue,
+  RESERVED: T.border, BOOKED: T.green,
 };
+
+// ── Stepper component ─────────────────────────────────────────────────────
+function Stepper({ steps, current, colorMap = {} }) {
+  const idx = steps.indexOf(current);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 0, flexWrap: "nowrap", overflowX: "auto", paddingBottom: 4 }}>
+      {steps.map((s, i) => {
+        const done    = i < idx;
+        const active  = i === idx;
+        const pending = i > idx;
+        const col     = colorMap[s] || (active ? T.gold : done ? T.green : T.border);
+        return (
+          <React.Fragment key={s}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 60 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: "50%",
+                background: active ? T.gold : done ? T.green : T.bg,
+                border: `2px solid ${col}`,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 12, fontWeight: 800,
+                color: active ? T.white : done ? T.white : T.textMuted,
+                transition: "all .2s",
+              }}>
+                {done ? "✓" : i + 1}
+              </div>
+              <div style={{ fontSize: 9, marginTop: 3, color: active ? T.goldDark : done ? T.green : T.textMuted, fontWeight: active ? 800 : 600, textAlign: "center", whiteSpace: "nowrap" }}>
+                {s.replace(/_/g, " ")}
+              </div>
+            </div>
+            {i < steps.length - 1 && (
+              <div style={{ flex: 1, height: 2, minWidth: 12, background: done ? T.green : T.border, margin: "0 2px", marginBottom: 18, transition: "background .2s" }} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function GateApp({ user, onBack }) {
   const [tab, setTab]                   = useState("gate");
+
+  // Gate tab state
   const [scanId, setScanId]             = useState("");
-  const [found, setFound]               = useState(null);
+  const [found, setFound]               = useState(null);   // booking row | "not_found"
   const [group, setGroup]               = useState(null);
-  const [groupDetails, setGroupDetails] = useState([]);
-  const [order, setOrder]               = useState(null);
   const [activeList, setActiveList]     = useState([]);
-  const [auditRows, setAuditRows]       = useState([]);
-  const [loading, setLoading]           = useState(false);
-  const [msg, setMsg]                   = useState(null);
+  const [gateLoading, setGateLoading]   = useState(false);
+  const [gateMsg, setGateMsg]           = useState(null);
   const [acting, setActing]             = useState(false);
+
+  // Warehouse tab state
+  const [whScanId, setWhScanId]         = useState("");
+  const [whGroup, setWhGroup]           = useState(null);   // group_header
+  const [whGroupDetails, setWhGroupDetails] = useState([]); // group_detail rows
+  const [whOrder, setWhOrder]           = useState(null);   // group_orders
+  const [whBooking, setWhBooking]       = useState(null);   // bookings row
+  const [whLoading, setWhLoading]       = useState(false);
+  const [whMsg, setWhMsg]               = useState(null);
+  const [whActing, setWhActing]         = useState(false);
+  const [activeGroups, setActiveGroups] = useState([]);
 
   const isGate = ["gate", "admin", "manager"].includes(user?.role);
   const isWH   = ["warehouse", "admin", "manager"].includes(user?.role);
 
-  // ── loadActive: bookings + group_orders join ──────────────────────────
+  // ── loadActive: active booking list + orderStatus join ────────────────
   const loadActive = useCallback(async () => {
     const [{ data: bookings }, { data: groupOrders }] = await Promise.all([
       supabase.from("bookings")
-        .select("*")
-        .in("status", ["RESERVED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"])
+        .select("booking_id, group_number, booking_date, booking_hour, dock_no, truck_plate, subcon_code, status, check_in_time")
+        .in("status", ACTIVE_TRUCK_STATUSES)
         .eq("booking_date", today())
         .order("booking_hour"),
       supabase.from("group_orders").select("group_number, status"),
@@ -65,276 +126,247 @@ export default function GateApp({ user, onBack }) {
     );
   }, []);
 
-  // ── loadAuditLogs ─────────────────────────────────────────────────────
-  const loadAuditLogs = useCallback(async () => {
-    const { data } = await supabase
-      .from("audit_log")
-      .select("*")
-      .order("timestamp", { ascending: false })
-      .limit(500);
-    setAuditRows(data || []);
+  // ── loadActiveGroups: warehouse Active Groups table (right panel) ──────
+  const loadActiveGroups = useCallback(async () => {
+    const activeStatuses = ["BOOKED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING","COMPLETED"];
+    const [{ data: groups }, { data: orders }] = await Promise.all([
+      supabase.from("group_header")
+        .select("group_number, subcon_code, status, dock_no, total_qty, booking_id")
+        .in("status", activeStatuses)
+        .order("group_number", { ascending: false })
+        .limit(50),
+      supabase.from("group_orders").select("group_number, status"),
+    ]);
+    const orderMap = {};
+    (orders || []).forEach(o => { orderMap[o.group_number] = o.status; });
+    setActiveGroups(
+      (groups || []).map(g => ({ ...g, orderStatus: orderMap[g.group_number] || "" }))
+    );
   }, []);
 
   useEffect(() => { loadActive(); }, [loadActive]);
-  useEffect(() => { if (tab === "audit") loadAuditLogs(); }, [tab, loadAuditLogs]);
+  useEffect(() => { if (tab === "warehouse") loadActiveGroups(); }, [tab, loadActiveGroups]);
 
+  // Realtime
   useEffect(() => {
     const ch = supabase.channel("gate_live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, loadActive)
-      .on("postgres_changes", { event: "*", schema: "public", table: "group_header" }, loadActive)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => { loadActive(); if (tab === "warehouse") loadActiveGroups(); })
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_header" }, () => loadActiveGroups())
+      .on("postgres_changes", { event: "*", schema: "public", table: "group_orders" }, () => loadActiveGroups())
       .subscribe(s => { if (s === "CHANNEL_ERROR") console.warn("Gate realtime error"); });
     return () => supabase.removeChannel(ch);
-  }, [loadActive]);
+  }, [loadActive, loadActiveGroups, tab]);
 
-  // ── handleScan ────────────────────────────────────────────────────────
-  const handleScan = async e => {
+  // ── GATE: scan booking ────────────────────────────────────────────────
+  const handleGateScan = async e => {
     e.preventDefault();
-    setLoading(true); setMsg(null);
-    setFound(null); setGroup(null); setGroupDetails([]); setOrder(null);
+    setGateLoading(true); setGateMsg(null); setFound(null); setGroup(null);
     const id = scanId.trim();
-
-    if (id.startsWith("IN")) {
-      // ── Inbound path ──
-      // inbound_bookings columns: booking_id, asn_no, supplier_code,
-      //   booking_date, booking_hour, dock_no, slot_key, truck_plate,
-      //   truck_type, driver_name, driver_phone, status, check_in_time
-      const { data: bk } = await supabase
-        .from("inbound_bookings").select("*").eq("booking_id", id).single();
-      if (!bk) { setFound("not_found"); setLoading(false); return; }
-
-      const [{ data: asn }, { data: invoices }, { data: details }] = await Promise.all([
-        supabase.from("asn_header").select("*").eq("asn_no", bk.asn_no).single(),
-        supabase.from("asn_invoice").select("*").eq("asn_no", bk.asn_no),
-        supabase.from("asn_detail").select("*").eq("asn_no", bk.asn_no),
-      ]);
-      setGroup(asn || null);
-      setGroupDetails(details || []);
-      setFound({ ...bk, _type: "inbound", _invoices: invoices || [] });
-
-    } else {
-      // ── Outbound path ──
-      const { data: bk } = await supabase
-        .from("bookings").select("*").eq("booking_id", id).single();
-      if (!bk) { setFound("not_found"); setLoading(false); return; }
-
-      if (bk.group_number) {
-        const [{ data: gh }, { data: gd }, { data: go }] = await Promise.all([
-          supabase.from("group_header").select("*").eq("group_number", bk.group_number).single(),
-          // group_detail columns: id, group_number, obd_no, qty, line_count, status
-          supabase.from("group_detail").select("*").eq("group_number", bk.group_number),
-          supabase.from("group_orders").select("*").eq("order_no", "GO-" + bk.group_number).single(),
-        ]);
-        setGroup(gh || null);
-        setGroupDetails(gd || []);
-        setOrder(go || null);
-      }
-      setFound({ ...bk, _type: "outbound" });
+    const { data: bk } = await supabase
+      .from("bookings").select("*").eq("booking_id", id).single();
+    if (!bk) { setFound("not_found"); setGateLoading(false); return; }
+    if (bk.group_number) {
+      const { data: gh } = await supabase
+        .from("group_header").select("*").eq("group_number", bk.group_number).single();
+      setGroup(gh || null);
     }
-    setLoading(false);
+    setFound(bk);
+    setGateLoading(false);
   };
 
-  const clearScan = () => {
-    setScanId(""); setFound(null); setGroup(null);
-    setGroupDetails([]); setOrder(null); setMsg(null);
-  };
-
-  // ── doAction: gate steps ──────────────────────────────────────────────
-  const doAction = async (bookingId, newStatus, type = "outbound") => {
-    setActing(true); setMsg(null);
-
-    if (newStatus === "LOADING"   && type === "outbound") { await startLoading(bookingId); setActing(false); return; }
-    if (newStatus === "COMPLETED" && type === "outbound") { await releaseDock(bookingId);  setActing(false); return; }
+  // ── GATE: doAction (gateCheckIn / callToDock / confirmTruckDocked) ────
+  const doGateAction = async (bookingId, newStatus) => {
+    setActing(true); setGateMsg(null);
 
     const update = { status: newStatus, updated_at: nowISO() };
     if (newStatus === "ON_YARD") update.check_in_time = nowISO();
 
-    const table = type === "inbound" ? "inbound_bookings" : "bookings";
-    const { error } = await supabase.from(table).update(update).eq("booking_id", bookingId);
-    if (error) { setMsg({ type: "err", msg: error.message }); setActing(false); return; }
+    const { error } = await supabase.from("bookings").update(update).eq("booking_id", bookingId);
+    if (error) { setGateMsg({ type: "err", msg: error.message }); setActing(false); return; }
 
-    // group_header: ไม่มี updated_at column — ส่งแค่ status
-    if (type === "outbound" && found?.group_number && GROUP_SYNC_STATUSES.includes(newStatus)) {
+    if (found?.group_number && GROUP_SYNC_STATUSES.includes(newStatus)) {
       await supabase.from("group_header")
         .update({ status: newStatus })
         .eq("group_number", found.group_number);
     }
 
-    // Inbound COMPLETED: mark ASN received + release slot
-    if (type === "inbound" && newStatus === "COMPLETED") {
-      await supabase.from("asn_header")
-        .update({ status: "RECEIVED", updated_at: nowISO() })
-        .eq("asn_no", found.asn_no);
-      if (found.slot_key)
-        await supabase.from("dock_slots")
-          // dock_slots: group_ref ไม่ใช่ group_number
-          .update({ status: "AVAILABLE", booking_id: null, group_ref: null })
-          .eq("slot_key", found.slot_key);
-    }
-
     await auditLog({
-      module: "GATE", action: newStatus,
-      targetType: type === "inbound" ? "INBOUND_BOOKING" : "BOOKING",
-      targetId: bookingId,
-      subconCode:  group?.subcon_code   || "",
-      groupNumber: found?.group_number  || "",
-      bookingId,
-      actor: user.username,
-      remark: `→ ${newStatus}`,
+      module: "GATE", action: newStatus, targetType: "BOOKING", targetId: bookingId,
+      subconCode: group?.subcon_code || "", groupNumber: found?.group_number || "",
+      bookingId, actor: user.username, remark: `→ ${newStatus}`,
     });
 
-    setMsg({ type: "ok", msg: `✅ อัปเดตสถานะเป็น ${newStatus} สำเร็จ` });
+    setGateMsg({ type: "ok", msg: `✅ ${newStatus} สำเร็จ` });
     setFound(p => ({ ...p, ...update }));
     loadActive();
     setActing(false);
   };
 
-  // ── startLoading_ ─────────────────────────────────────────────────────
-  const startLoading = async bookingId => {
-    if (!["TRUCK_DOCKED", "LOADING"].includes(found?.status)) {
-      setMsg({ type: "err", msg: `Truck ต้องเป็น TRUCK_DOCKED ก่อน (ปัจจุบัน: ${found?.status})` });
-      return;
+  // ── WAREHOUSE: load group by groupNumber ──────────────────────────────
+  const loadWhGroup = async (gn) => {
+    setWhLoading(true); setWhMsg(null);
+    setWhGroup(null); setWhGroupDetails([]); setWhOrder(null); setWhBooking(null);
+    if (!gn?.trim()) { setWhLoading(false); return; }
+
+    const [{ data: gh }, { data: gd }, { data: go }] = await Promise.all([
+      supabase.from("group_header").select("*").eq("group_number", gn.trim()).single(),
+      supabase.from("group_detail").select("*").eq("group_number", gn.trim()),
+      supabase.from("group_orders").select("*").eq("order_no", "GO-" + gn.trim()).single(),
+    ]);
+
+    if (!gh) { setWhMsg({ type: "err", msg: `ไม่พบ Group: ${gn}` }); setWhLoading(false); return; }
+    setWhGroup(gh);
+    setWhGroupDetails(gd || []);
+    setWhOrder(go || null);
+
+    // load booking if exists
+    if (gh.booking_id) {
+      const { data: bk } = await supabase.from("bookings").select("*").eq("booking_id", gh.booking_id).single();
+      setWhBooking(bk || null);
     }
-    const now = nowISO();
-    const gn  = found?.group_number;
-
-    const ops = [
-      supabase.from("bookings")
-        .update({ status: "LOADING", updated_at: now })
-        .eq("booking_id", bookingId),
-      // group_header ไม่มี updated_at
-      supabase.from("group_header")
-        .update({ status: "LOADING" })
-        .eq("group_number", gn),
-    ];
-    if (order)
-      ops.push(supabase.from("group_orders")
-        .update({ status: "LOADING", updated_at: now })
-        .eq("order_no", order.order_no));
-
-    const results = await Promise.all(ops);
-    const err = results.find(r => r.error)?.error;
-    if (err) { setMsg({ type: "err", msg: err.message }); return; }
-
-    await auditLog({
-      module: "WAREHOUSE", action: "START_LOADING",
-      targetType: "GROUP", targetId: gn,
-      subconCode:  group?.subcon_code || "",
-      groupNumber: gn,
-      bookingId,
-      actor: user.username, remark: "Loading started",
-    });
-    setMsg({ type: "ok", msg: "✅ เริ่ม Loading สำเร็จ" });
-    setFound(p => ({ ...p, status: "LOADING", updated_at: now }));
-    if (order) setOrder(p => ({ ...p, status: "LOADING" }));
-    loadActive();
+    setWhLoading(false);
   };
 
-  // ── releaseDock_ ──────────────────────────────────────────────────────
-  const releaseDock = async bookingId => {
-    const now = nowISO();
-    const gn  = found?.group_number;
-
-    const ops = [
-      supabase.from("bookings")
-        .update({ status: "RELEASED", updated_at: now })
-        .eq("booking_id", bookingId),
-      // group_header: ไม่มี updated_at, clear dock_no ด้วย (mirrors GAS v2 fix)
-      supabase.from("group_header")
-        .update({ status: "COMPLETED", dock_no: null })
-        .eq("group_number", gn),
-    ];
-
-    if (found?.slot_key)
-      ops.push(supabase.from("dock_slots")
-        // dock_slots: group_ref ไม่ใช่ group_number
-        .update({ status: "AVAILABLE", booking_id: null, group_ref: null })
-        .eq("slot_key", found.slot_key));
-
-    if (order)
-      ops.push(supabase.from("group_orders")
-        .update({ status: "COMPLETED", updated_at: now })
-        .eq("order_no", order.order_no));
-
-    const results = await Promise.all(ops);
-    const err = results.find(r => r.error)?.error;
-    if (err) { setMsg({ type: "err", msg: err.message }); return; }
-
-    await auditLog({
-      module: "DOCK", action: "RELEASE_DOCK",
-      targetType: "BOOKING", targetId: bookingId,
-      subconCode:  group?.subcon_code || "",
-      groupNumber: gn,
-      bookingId,
-      actor: user.username, remark: "Dock released",
-    });
-    setMsg({ type: "ok", msg: "✅ Release Dock สำเร็จ" });
-    setFound(p => ({ ...p, status: "COMPLETED", dock_no: null }));
-    if (order) setOrder(p => ({ ...p, status: "COMPLETED" }));
-    loadActive();
+  const handleWhScan = async e => {
+    e.preventDefault();
+    await loadWhGroup(whScanId);
   };
 
-  // ── createGroupOrder_ ─────────────────────────────────────────────────
+  const clearWh = () => {
+    setWhScanId(""); setWhGroup(null); setWhGroupDetails([]);
+    setWhOrder(null); setWhBooking(null); setWhMsg(null);
+  };
+
+  // ── WAREHOUSE: createGroupOrder_ (ได้ตั้งแต่ BOOKED) ─────────────────
   const createOrder = async () => {
-    if (!found || found._type !== "outbound") return;
-    if (BLOCKED_ORDER_STATUSES.includes(group?.status)) {
-      setMsg({ type: "err", msg: `ไม่สามารถสร้าง Order ที่ status: ${group?.status}` });
+    if (!whGroup) return;
+    if (BLOCKED_ORDER_STATUSES.includes(whGroup.status)) {
+      setWhMsg({ type: "err", msg: `ไม่สามารถสร้าง Order ที่ status: ${whGroup.status}` });
       return;
     }
-    const orderNo = "GO-" + found.group_number;
+    const orderNo = "GO-" + whGroup.group_number;
     const { error } = await supabase.from("group_orders").insert({
-      order_no:     orderNo,
-      group_number: found.group_number,
-      total_obd:    group?.total_obd || 0,
-      total_qty:    group?.total_qty || 0,
-      status:       "ORDER_CREATED",
-      created_by:   user.username,
+      order_no: orderNo, group_number: whGroup.group_number,
+      total_obd: whGroup.total_obd || 0, total_qty: whGroup.total_qty || 0,
+      status: "ORDER_CREATED", created_by: user.username,
     });
-    if (error) return setMsg({ type: "err", msg: error.message });
+    if (error) return setWhMsg({ type: "err", msg: error.message });
 
-    const { data: o } = await supabase
-      .from("group_orders").select("*").eq("order_no", orderNo).single();
-    setOrder(o || null);
-
+    const { data: o } = await supabase.from("group_orders").select("*").eq("order_no", orderNo).single();
+    setWhOrder(o || null);
     await auditLog({
-      module: "WAREHOUSE", action: "CREATE_ORDER",
-      targetType: "ORDER", targetId: orderNo,
-      subconCode:  group?.subcon_code  || "",
-      groupNumber: found.group_number,
-      bookingId:   found.booking_id,
-      actor: user.username, remark: "Order created",
+      module: "WAREHOUSE", action: "CREATE_ORDER", targetType: "ORDER", targetId: orderNo,
+      subconCode: whGroup.subcon_code || "", groupNumber: whGroup.group_number,
+      bookingId: whGroup.booking_id || "", actor: user.username, remark: "Order created",
     });
-    setMsg({ type: "ok", msg: `✅ สร้าง Order ${orderNo} สำเร็จ` });
+    setWhMsg({ type: "ok", msg: `✅ สร้าง Order ${orderNo} สำเร็จ` });
+    loadActiveGroups();
   };
 
-  // ── updateOrderStatus_ ────────────────────────────────────────────────
+  // ── WAREHOUSE: updateOrderStatus_ ────────────────────────────────────
   const updateOrder = async newStatus => {
-    if (!order) return;
+    if (!whOrder) return;
     if (!ALLOWED_ORDER_STATUSES.includes(newStatus)) {
-      setMsg({ type: "err", msg: `Invalid order status: ${newStatus}` });
+      setWhMsg({ type: "err", msg: `Invalid order status: ${newStatus}` });
       return;
     }
     const { error } = await supabase.from("group_orders")
-      .update({ status: newStatus, updated_at: nowISO() })
-      .eq("order_no", order.order_no);
-    if (error) return setMsg({ type: "err", msg: error.message });
+      .update({ status: newStatus, updated_at: nowISO() }).eq("order_no", whOrder.order_no);
+    if (error) return setWhMsg({ type: "err", msg: error.message });
 
-    setOrder(p => ({ ...p, status: newStatus }));
+    setWhOrder(p => ({ ...p, status: newStatus }));
     await auditLog({
-      module: "WAREHOUSE", action: "UPDATE_ORDER",
-      targetType: "ORDER", targetId: order.order_no,
-      groupNumber: found?.group_number || "",
-      bookingId:   found?.booking_id   || "",
+      module: "WAREHOUSE", action: "UPDATE_ORDER", targetType: "ORDER", targetId: whOrder.order_no,
+      groupNumber: whGroup?.group_number || "", bookingId: whGroup?.booking_id || "",
       actor: user.username, remark: `→ ${newStatus}`,
     });
-    setMsg({ type: "ok", msg: `✅ Order status → ${newStatus}` });
+    setWhMsg({ type: "ok", msg: `✅ Order → ${newStatus}` });
+    loadActiveGroups();
+  };
+
+  // ── WAREHOUSE: startLoading_ (requires READY_FOR_LOADING) ────────────
+  const startLoading = async () => {
+    if (!whGroup) return;
+
+    // Guard: order ต้อง READY_FOR_LOADING ก่อน
+    if (!whOrder || whOrder.status !== "READY_FOR_LOADING") {
+      setWhMsg({ type: "err", msg: "ต้อง Pick order ให้เสร็จ (READY_FOR_LOADING) ก่อนเริ่ม Loading" });
+      return;
+    }
+    // Guard: truck ต้อง TRUCK_DOCKED
+    if (!["TRUCK_DOCKED", "LOADING"].includes(whGroup.status)) {
+      setWhMsg({ type: "err", msg: `Truck ต้องเป็น TRUCK_DOCKED ก่อน (ปัจจุบัน: ${whGroup.status})` });
+      return;
+    }
+
+    setWhActing(true);
+    const now = nowISO();
+    const ops = [
+      supabase.from("group_header").update({ status: "LOADING" }).eq("group_number", whGroup.group_number),
+      supabase.from("group_orders").update({ status: "LOADING", updated_at: now }).eq("order_no", whOrder.order_no),
+    ];
+    if (whGroup.booking_id)
+      ops.push(supabase.from("bookings").update({ status: "LOADING", updated_at: now }).eq("booking_id", whGroup.booking_id));
+
+    const results = await Promise.all(ops);
+    const err = results.find(r => r.error)?.error;
+    if (err) { setWhMsg({ type: "err", msg: err.message }); setWhActing(false); return; }
+
+    await auditLog({
+      module: "WAREHOUSE", action: "START_LOADING", targetType: "GROUP", targetId: whGroup.group_number,
+      subconCode: whGroup.subcon_code || "", groupNumber: whGroup.group_number,
+      bookingId: whGroup.booking_id || "", actor: user.username, remark: "Loading started",
+    });
+    setWhMsg({ type: "ok", msg: "✅ เริ่ม Loading สำเร็จ" });
+    setWhGroup(p => ({ ...p, status: "LOADING" }));
+    setWhOrder(p => ({ ...p, status: "LOADING" }));
+    loadActive(); loadActiveGroups();
+    setWhActing(false);
+  };
+
+  // ── WAREHOUSE: releaseDock_ ───────────────────────────────────────────
+  const releaseDock = async () => {
+    if (!whGroup || !whGroup.booking_id) return;
+    setWhActing(true);
+    const now = nowISO();
+
+    // load booking to get slot_key
+    const { data: bk } = await supabase.from("bookings").select("slot_key").eq("booking_id", whGroup.booking_id).single();
+
+    const ops = [
+      supabase.from("bookings").update({ status: "RELEASED", updated_at: now }).eq("booking_id", whGroup.booking_id),
+      supabase.from("group_header").update({ status: "COMPLETED", dock_no: null }).eq("group_number", whGroup.group_number),
+    ];
+    if (bk?.slot_key)
+      ops.push(supabase.from("dock_slots")
+        .update({ status: "AVAILABLE", booking_id: null, group_ref: null })
+        .eq("slot_key", bk.slot_key));
+    if (whOrder)
+      ops.push(supabase.from("group_orders")
+        .update({ status: "COMPLETED", updated_at: now }).eq("order_no", whOrder.order_no));
+
+    const results = await Promise.all(ops);
+    const err = results.find(r => r.error)?.error;
+    if (err) { setWhMsg({ type: "err", msg: err.message }); setWhActing(false); return; }
+
+    await auditLog({
+      module: "DOCK", action: "RELEASE_DOCK", targetType: "BOOKING", targetId: whGroup.booking_id,
+      subconCode: whGroup.subcon_code || "", groupNumber: whGroup.group_number,
+      bookingId: whGroup.booking_id, actor: user.username, remark: "Dock released",
+    });
+    setWhMsg({ type: "ok", msg: "✅ Release Dock สำเร็จ" });
+    setWhGroup(p => ({ ...p, status: "COMPLETED", dock_no: null }));
+    if (whOrder) setWhOrder(p => ({ ...p, status: "COMPLETED" }));
+    loadActive(); loadActiveGroups();
+    setWhActing(false);
   };
 
   // ── Tab strip ─────────────────────────────────────────────────────────
   const TabStrip = () => (
     <div style={{ display: "flex", gap: 4, background: "rgba(255,255,255,.15)", borderRadius: 8, padding: 3 }}>
-      {[["gate","🔍 Gate"],["active","📋 Active"],["audit","📜 Audit"]].map(([t, l]) => (
+      {[["gate","🔍 Gate"], ["warehouse","🏭 Warehouse"]].map(([t, l]) => (
         <button key={t} onClick={() => setTab(t)} style={{
-          border: "none", borderRadius: 6, padding: "4px 10px",
+          border: "none", borderRadius: 6, padding: "4px 12px",
           fontWeight: 700, fontSize: 11, cursor: "pointer",
           background: tab === t ? T.white : "transparent",
           color: tab === t ? T.goldDark : "rgba(255,255,255,.85)",
@@ -343,21 +375,20 @@ export default function GateApp({ user, onBack }) {
     </div>
   );
 
-  // ── RENDER ────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh", background: T.bg }}>
 
-      {/* Topbar — inline pattern เหมือน BookingApp */}
+      {/* Topbar */}
       <div style={{
-        background: T.topbarGrad, color: T.white,
-        padding: "13px 18px", display: "flex", alignItems: "center",
-        gap: 10, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 40,
-        boxShadow: "0 2px 12px rgba(18,40,80,.25)",
-        borderBottom: `3px solid ${T.gold}`,
+        background: T.topbarGrad, color: T.white, padding: "13px 18px",
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+        position: "sticky", top: 0, zIndex: 40,
+        boxShadow: "0 2px 12px rgba(18,40,80,.25)", borderBottom: `3px solid ${T.gold}`,
       }}>
         <button onClick={onBack} style={{ border: "1px solid rgba(255,255,255,.25)", background: "rgba(255,255,255,.08)", color: T.white, borderRadius: 8, padding: "5px 12px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>← Back</button>
         <div style={{ width: 28, height: 28, borderRadius: 6, background: T.gold, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 11, color: T.navy, flexShrink: 0 }}>YCH</div>
-        <span style={{ fontWeight: 800, fontSize: 15 }}>🏭 Gate & Warehouse</span>
+        <span style={{ fontWeight: 800, fontSize: 15 }}>Gate & Warehouse</span>
         <TabStrip />
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ADE80", display: "inline-block", boxShadow: "0 0 0 3px rgba(74,222,128,.25)" }} />
@@ -365,205 +396,305 @@ export default function GateApp({ user, onBack }) {
         </div>
       </div>
 
-      <div style={{ padding: 14, maxWidth: 900, margin: "0 auto" }}>
-        {msg && <Alert type={msg.type} msg={msg.msg} />}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* GATE TAB                                                       */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {tab === "gate" && (
+        <div style={{ padding: 14, maxWidth: 800, margin: "0 auto" }}>
+          {gateMsg && <Alert type={gateMsg.type} msg={gateMsg.msg} />}
 
-        {/* ── GATE TAB ─────────────────────────────────────────── */}
-        {tab === "gate" && (
+          {/* Scan card */}
           <div style={{ background: T.bgCard, borderRadius: 14, padding: 18, marginBottom: 14, boxShadow: T.shadow, border: `1px solid ${T.border}` }}>
-            <SectionHeader title="🔍 Scan Booking ID" />
-            <form onSubmit={handleScan} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div style={{ fontWeight: 800, color: T.navy, fontSize: 13, marginBottom: 10 }}>Gate Check-In</div>
+            <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 10 }}>Scan Barcode หรือพิมพ์ Booking ID แล้วกด Enter</div>
+            <form onSubmit={handleGateScan} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
               <input
                 value={scanId} onChange={e => setScanId(e.target.value)}
-                placeholder="BOOKING ID" autoCapitalize="characters"
-                style={{ flex: 1, padding: "12px 14px", border: `2.5px solid ${T.gold}`, borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, outline: "none" }}
+                placeholder="BOOKING ID" autoCapitalize="characters" autoFocus
+                style={{ flex: 1, padding: "13px 16px", border: `2.5px solid ${T.gold}`, borderRadius: 10, fontSize: 15, fontWeight: 700, fontFamily: "monospace", letterSpacing: 2, outline: "none", textAlign: "center" }}
               />
-              <button type="submit" disabled={loading} style={{ ...BTN.primary, padding: "0 18px" }}>ค้นหา</button>
-              <button type="button" onClick={clearScan} style={{ ...BTN.ghost, padding: "0 12px" }}>✕</button>
+              <button type="submit" disabled={gateLoading} style={{ ...BTN.primary, padding: "0 20px", fontSize: 13 }}>Lookup</button>
+              <button type="button" onClick={() => { setScanId(""); setFound(null); setGroup(null); setGateMsg(null); }} style={{ ...BTN.ghost, padding: "0 12px" }}>Clear</button>
             </form>
 
-            {loading && <Spinner />}
+            {gateLoading && <Spinner />}
             {found === "not_found" && <Alert type="err" msg="ไม่พบ Booking ID นี้" />}
 
             {found && found !== "not_found" && (
-              <div style={{ padding: 14, background: T.goldPale, border: `1.5px solid ${T.goldLight}`, borderRadius: 10 }}>
-
-                {/* Booking info */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              <div style={{ marginTop: 10, padding: 14, background: T.goldPale, border: `1.5px solid ${T.goldLight}`, borderRadius: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
                   <div>
-                    <div style={{ fontFamily: "monospace", fontSize: 15, fontWeight: 900, color: T.navy }}>{found.booking_id}</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 900, color: T.navy }}>{found.booking_id}</div>
                     <div style={{ fontSize: 12, color: T.textSecond, marginTop: 2 }}>
-                      {found._type === "inbound" ? `ASN: ${found.asn_no}` : `Group: ${found.group_number}`}
-                      {" • "} Dock {found.dock_no} • {String(found.booking_hour || "").slice(0, 5)} • {found.booking_date}
+                      Group: {found.group_number} • Dock {found.dock_no} • {String(found.booking_hour || "").slice(0, 5)} • {found.booking_date}
                     </div>
                     <div style={{ fontSize: 11, color: T.textMuted, marginTop: 1 }}>
-                      {found.truck_plate} • {found.driver_name}
-                      {/* inbound_bookings ใช้ driver_phone, bookings ใช้ phone */}
-                      {" • "}{found._type === "inbound" ? found.driver_phone : found.phone}
+                      {found.truck_plate} • {found.driver_name} • {found.phone}
                     </div>
                     {found.check_in_time && (
                       <div style={{ fontSize: 11, color: T.green, fontWeight: 700, marginTop: 1 }}>
                         Check-in: {new Date(found.check_in_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
                       </div>
                     )}
-                    <div style={{ marginTop: 5 }}>
-                      <span style={{ fontSize: 10, background: found._type === "inbound" ? T.greenBg : T.blueBg, color: found._type === "inbound" ? T.green : T.blue, borderRadius: 999, padding: "1px 8px", fontWeight: 700 }}>
-                        {found._type === "inbound" ? "📥 INBOUND" : "📤 OUTBOUND"}
-                      </span>
-                    </div>
                   </div>
                   <StatusBadge status={found.status} size={11} />
                 </div>
 
-                {/* group_detail rows — column จริงคือ obd_no, qty */}
-                {found._type === "outbound" && groupDetails.length > 0 && (
-                  <div style={{ marginBottom: 10, padding: 10, background: "rgba(255,255,255,.7)", borderRadius: 8 }}>
-                    <div style={{ fontWeight: 700, color: T.navy, fontSize: 12, marginBottom: 6 }}>
-                      รายการ OBD ({groupDetails.length} รายการ)
-                    </div>
-                    {groupDetails.map((d, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
-                        <span style={{ color: T.textSecond }}>{d.obd_no || "—"}</span>
-                        {/* column จริงคือ qty ไม่ใช่ total_qty */}
-                        <span style={{ color: T.textMuted }}>{d.qty || 0} pcs</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* ASN detail rows — inbound */}
-                {found._type === "inbound" && groupDetails.length > 0 && (
-                  <div style={{ marginBottom: 10, padding: 10, background: "rgba(255,255,255,.7)", borderRadius: 8 }}>
-                    <div style={{ fontWeight: 700, color: T.navy, fontSize: 12, marginBottom: 6 }}>
-                      รายการสินค้า ({groupDetails.length} รายการ)
-                    </div>
-                    {groupDetails.map((d, i) => (
-                      <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "3px 0", borderBottom: `1px solid ${T.border}`, fontSize: 12 }}>
-                        <span style={{ color: T.textSecond }}>{d.item_code} — {d.item_name}</span>
-                        <span style={{ color: T.textMuted }}>{d.qty_shipped || 0} {d.unit}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Gate action */}
+                {/* Gate action buttons — only gate steps here */}
                 {isGate && GATE_ACTIONS[found.status] && (
                   <button
-                    onClick={() => doAction(found.booking_id, GATE_ACTIONS[found.status].next, found._type)}
+                    onClick={() => doGateAction(found.booking_id, GATE_ACTIONS[found.status].next)}
                     disabled={acting}
-                    style={{ width: "100%", padding: 10, marginBottom: 8, border: "none", borderRadius: 9, fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: acting ? 0.6 : 1, background: GATE_ACTIONS[found.status].color, color: T.white }}
+                    style={{ width: "100%", padding: 10, border: "none", borderRadius: 9, fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: acting ? 0.6 : 1, background: GATE_ACTIONS[found.status].color, color: T.white }}
                   >
                     {GATE_ACTIONS[found.status].label}
                   </button>
                 )}
+                {found.status === "TRUCK_DOCKED" && (
+                  <div style={{ marginTop: 6, padding: "8px 12px", background: T.blueBg, borderRadius: 8, fontSize: 12, color: T.blue, fontWeight: 700 }}>
+                    🏭 Truck Docked แล้ว — ดำเนินการต่อที่ Warehouse tab
+                  </div>
+                )}
+                {found.status === "LOADING" && (
+                  <div style={{ marginTop: 6, padding: "8px 12px", background: T.amberBg, borderRadius: 8, fontSize: 12, color: T.amber, fontWeight: 700 }}>
+                    ⬆ กำลัง Loading — Release Dock ที่ Warehouse tab
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
-                {/* Warehouse order panel */}
-                {isWH && found._type === "outbound" && ["TRUCK_DOCKED", "LOADING"].includes(found.status) && (
-                  <div style={{ marginTop: 8, padding: 12, background: T.blueBg, borderRadius: 9, border: `1px solid #BFDBFE` }}>
-                    <div style={{ fontWeight: 700, color: T.blue, fontSize: 13, marginBottom: 8 }}>📋 Warehouse Order</div>
-                    {!order ? (
-                      <button onClick={createOrder} style={{ ...BTN.secondary, padding: "7px 14px", fontSize: 12 }}>
+          {/* รถในลาน table (mirrors GAS Gate tab) */}
+          <div style={{ background: T.bgCard, borderRadius: 14, overflow: "hidden", boxShadow: T.shadow, border: `1px solid ${T.border}` }}>
+            <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 800, color: T.navy, fontSize: 13 }}>รถในลาน ({activeList.length})</span>
+              <button onClick={loadActive} style={{ ...BTN.ghost, padding: "3px 10px", fontSize: 11 }}>↻</button>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: T.navy }}>
+                    {["Booking ID", "SubCon", "Dock", "เวลา", "Status", ""].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: T.white, fontWeight: 700, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeList.length === 0 ? (
+                    <tr><td colSpan={6} style={{ textAlign: "center", padding: 24, color: T.textMuted, fontSize: 12 }}>ไม่มีรถในลานวันนี้</td></tr>
+                  ) : activeList.map((b, i) => {
+                    const act = GATE_ACTIONS[b.status];
+                    return (
+                      <tr key={b.booking_id} style={{ background: i % 2 === 0 ? T.white : "#F8FAFF", borderBottom: `1px solid ${T.border}` }}>
+                        <td style={{ padding: "8px 12px", fontFamily: "monospace", fontWeight: 700, fontSize: 11, color: T.navy }}>{b.booking_id}</td>
+                        <td style={{ padding: "8px 12px", fontWeight: 600 }}>{b.subcon_code || "—"}</td>
+                        <td style={{ padding: "8px 12px" }}>Dock {b.dock_no}</td>
+                        <td style={{ padding: "8px 12px", color: T.textMuted }}>{String(b.booking_hour || "").slice(0, 5)}</td>
+                        <td style={{ padding: "8px 12px" }}><StatusBadge status={b.status} size={10} /></td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <div style={{ display: "flex", gap: 4 }}>
+                            {isGate && act && (
+                              <button
+                                onClick={() => { setScanId(b.booking_id); setTab("gate"); setTimeout(() => document.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })), 80); }}
+                                style={{ ...BTN.ghost, padding: "3px 8px", fontSize: 10 }}>Open</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* WAREHOUSE TAB                                                  */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {tab === "warehouse" && (
+        <div style={{ padding: 14, maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 380px", gap: 14, alignItems: "start" }}>
+
+          {/* LEFT: Group Detail */}
+          <div>
+            {whMsg && <Alert type={whMsg.type} msg={whMsg.msg} />}
+            <div style={{ background: T.bgCard, borderRadius: 14, padding: 18, marginBottom: 14, boxShadow: T.shadow, border: `1px solid ${T.border}` }}>
+              <SectionHeader title="Group Detail" onRefresh={whGroup ? () => loadWhGroup(whGroup.group_number) : undefined} />
+              <form onSubmit={handleWhScan} style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input
+                  value={whScanId} onChange={e => setWhScanId(e.target.value)}
+                  placeholder="Group Number เช่น MN26042801"
+                  style={{ flex: 1, padding: "10px 14px", border: `2px solid ${T.borderDark}`, borderRadius: 10, fontSize: 13, fontWeight: 700, fontFamily: "monospace", outline: "none" }}
+                />
+                <button type="submit" disabled={whLoading} style={{ ...BTN.primary, padding: "0 16px" }}>Load</button>
+                <button type="button" onClick={clearWh} style={{ ...BTN.ghost, padding: "0 10px" }}>✕</button>
+              </form>
+
+              {whLoading && <Spinner />}
+
+              {whGroup && (
+                <>
+                  {/* Truck Track stepper */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      🚛 TRUCK TRACK
+                    </div>
+                    <Stepper steps={TRUCK_STEPS} current={whGroup.status} />
+                  </div>
+
+                  {/* Order Track stepper */}
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                      📋 ORDER TRACK
+                    </div>
+                    <Stepper steps={ORDER_STEPS} current={whOrder?.status || "—"} />
+                  </div>
+
+                  {/* Status indicators — mirrors GAS "Truck ยังไม่ docked" / "Order ready" */}
+                  <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
+                      background: ["TRUCK_DOCKED","LOADING","COMPLETED"].includes(whGroup.status) ? T.greenBg : T.redBg,
+                      color: ["TRUCK_DOCKED","LOADING","COMPLETED"].includes(whGroup.status) ? T.green : T.red,
+                    }}>
+                      {["TRUCK_DOCKED","LOADING","COMPLETED"].includes(whGroup.status) ? "✓ Truck Docked" : "✗ Truck ยังไม่ Docked"}
+                    </span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
+                      background: whOrder?.status === "READY_FOR_LOADING" ? T.greenBg : T.amberBg,
+                      color: whOrder?.status === "READY_FOR_LOADING" ? T.green : T.amber,
+                    }}>
+                      {whOrder?.status === "READY_FOR_LOADING" ? "✓ Order Ready" : "⏳ Order ยังไม่ Ready"}
+                    </span>
+                  </div>
+
+                  {/* Group info */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    {[
+                      { label: "GROUP", value: whGroup.group_number, mono: true, color: T.navy },
+                      { label: "SUBCON", value: `${whGroup.subcon_name || ""} (${whGroup.subcon_code})`, color: T.amber },
+                      { label: "TRUCK", value: <StatusBadge status={whGroup.status} size={10} /> },
+                      { label: "ORDER", value: whOrder ? <StatusBadge status={whOrder.status} size={10} /> : <span style={{ fontSize: 11, color: T.textMuted }}>No order</span> },
+                      { label: "QTY", value: `${whGroup.total_qty} pcs` },
+                      { label: "DOCK / เวลา", value: whGroup.dock_no ? `Dock ${whGroup.dock_no} • ${String(whBooking?.booking_hour || "").slice(0, 5)}` : "—", color: T.blue },
+                    ].map(({ label, value, mono, color }) => (
+                      <div key={label} style={{ padding: "8px 10px", background: T.bg, borderRadius: 8 }}>
+                        <div style={{ fontSize: 9, fontWeight: 700, color: T.textMuted, marginBottom: 3 }}>{label}</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: color || T.textPrimary, fontFamily: mono ? "monospace" : undefined }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Order Actions */}
+                  <div style={{ padding: 12, background: T.blueBg, borderRadius: 10, border: `1px solid #BFDBFE`, marginBottom: 12 }}>
+                    <div style={{ fontWeight: 700, color: T.blue, fontSize: 12, marginBottom: 8 }}>ORDER ACTIONS</div>
+                    {!whOrder ? (
+                      <button onClick={createOrder} disabled={BLOCKED_ORDER_STATUSES.includes(whGroup.status)}
+                        style={{ ...BTN.secondary, padding: "8px 16px", fontSize: 12, opacity: BLOCKED_ORDER_STATUSES.includes(whGroup.status) ? 0.5 : 1 }}>
                         + สร้าง Order
                       </button>
                     ) : (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700 }}>{order.order_no}</span>
-                        <StatusBadge status={order.status} size={10} />
-                        {ORDER_ACTIONS[order.status] && (
-                          <button
-                            onClick={() => updateOrder(ORDER_ACTIONS[order.status].next)}
-                            style={{ border: "none", borderRadius: 7, padding: "4px 10px", fontWeight: 700, cursor: "pointer", fontSize: 11, background: ORDER_ACTIONS[order.status].color, color: T.white }}
-                          >
-                            {ORDER_ACTIONS[order.status].label}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700 }}>{whOrder.order_no}</span>
+                        <StatusBadge status={whOrder.status} size={10} />
+                        {ORDER_ACTIONS[whOrder.status] && (
+                          <button onClick={() => updateOrder(ORDER_ACTIONS[whOrder.status].next)}
+                            style={{ border: "none", borderRadius: 7, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 11, background: ORDER_ACTIONS[whOrder.status].color, color: T.white }}>
+                            {ORDER_ACTIONS[whOrder.status].label}
                           </button>
                         )}
                       </div>
                     )}
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* ── ACTIVE TAB ───────────────────────────────────────── */}
-        {tab === "active" && (
-          <div style={{ background: T.bgCard, borderRadius: 14, padding: 18, boxShadow: T.shadow, border: `1px solid ${T.border}` }}>
-            <SectionHeader title="🚛 Active วันนี้" count={activeList.length} onRefresh={loadActive} />
-            {activeList.length === 0 ? (
-              <p style={{ textAlign: "center", color: T.textMuted, padding: 20, fontSize: 12 }}>ไม่มี Active Booking วันนี้</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {activeList.map(b => {
-                  const act = GATE_ACTIONS[b.status];
-                  return (
-                    <div key={b.booking_id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderRadius: 10, gap: 10, flexWrap: "wrap", background: STATUS_BG[b.status] || T.bg, borderLeft: "3px solid", borderLeftColor: STATUS_BL[b.status] || T.border }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                          <span style={{ fontFamily: "monospace", fontWeight: 700, fontSize: 12, color: T.navy }}>{b.truck_plate || "—"}</span>
-                          <span style={{ fontSize: 11, color: T.textMuted }}>D{b.dock_no} • {String(b.booking_hour || "").slice(0, 5)}</span>
-                          {b.check_in_time && (
-                            <span style={{ fontSize: 11, color: T.green, fontWeight: 700 }}>
-                              ✓ {new Date(b.check_in_time).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
-                            </span>
-                          )}
-                          {b.orderStatus && (
-                            <span style={{ fontSize: 10, background: T.blueBg, color: T.blue, borderRadius: 999, padding: "1px 6px", fontWeight: 700 }}>
-                              {b.orderStatus}
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 10, color: T.textMuted, marginTop: 2, fontFamily: "monospace" }}>{b.booking_id}</div>
-                      </div>
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <StatusBadge status={b.status} />
-                        {isGate && act && (
-                          <button
-                            onClick={() => doAction(b.booking_id, act.next, "outbound")}
-                            style={{ border: "none", borderRadius: 7, padding: "4px 10px", fontWeight: 700, cursor: "pointer", fontSize: 11, background: act.color, color: T.white }}
-                          >
-                            {act.label}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            setScanId(b.booking_id); setTab("gate");
-                            setTimeout(() => document.querySelector("form")?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true })), 100);
-                          }}
-                          style={{ ...BTN.ghost, padding: "4px 10px" }}
-                        >
-                          เปิด
-                        </button>
+                  {/* Start Loading / Release Dock */}
+                  {isWH && whGroup.status === "TRUCK_DOCKED" && (
+                    <button onClick={startLoading} disabled={whActing}
+                      style={{ width: "100%", padding: 10, marginBottom: 8, border: "none", borderRadius: 9, fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: whActing ? 0.6 : 1, background: T.blue, color: T.white }}>
+                      ⬆ Start Loading
+                    </button>
+                  )}
+                  {isWH && whGroup.status === "LOADING" && (
+                    <button onClick={releaseDock} disabled={whActing}
+                      style={{ width: "100%", padding: 10, border: "none", borderRadius: 9, fontWeight: 700, cursor: "pointer", fontSize: 13, opacity: whActing ? 0.6 : 1, background: T.green, color: T.white }}>
+                      ✓ Complete & Release Dock
+                    </button>
+                  )}
+
+                  {/* OBD ใน GROUP table */}
+                  {whGroupDetails.length > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontWeight: 700, color: T.navy, fontSize: 12, marginBottom: 8 }}>OBD ใน GROUP ({whGroupDetails.length})</div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                          <thead>
+                            <tr style={{ background: T.navy }}>
+                              {["OBD No", "Qty", "Lines"].map(h => (
+                                <th key={h} style={{ padding: "6px 10px", textAlign: "left", color: T.white, fontWeight: 700, fontSize: 11 }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {whGroupDetails.map((d, i) => (
+                              <tr key={i} style={{ background: i % 2 === 0 ? T.white : "#F8FAFF", borderBottom: `1px solid ${T.border}` }}>
+                                <td style={{ padding: "6px 10px", fontFamily: "monospace", fontWeight: 600 }}>{d.obd_no || "—"}</td>
+                                {/* column จริงจาก schema: qty, line_count */}
+                                <td style={{ padding: "6px 10px" }}>{d.qty || 0}</td>
+                                <td style={{ padding: "6px 10px", color: T.textMuted }}>{d.line_count || 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        )}
 
-        {/* ── AUDIT TAB ────────────────────────────────────────── */}
-        {tab === "audit" && (
-          <div style={{ background: T.bgCard, borderRadius: 14, padding: 18, boxShadow: T.shadow, border: `1px solid ${T.border}` }}>
-            <SectionHeader title="📜 Audit Log" count={auditRows.length} onRefresh={loadAuditLogs} />
-            <Table
-              headers={["เวลา", "Module", "Action", "Target ID", "Actor", "Remark"]}
-              emptyText="ไม่มีข้อมูล"
-              rows={auditRows.map(r => [
-                r.timestamp
-                  ? new Date(r.timestamp).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-                  : "—",
-                r.module,
-                r.action,
-                r.target_id,
-                r.actor,
-                r.remark,
-              ])}
-            />
+          {/* RIGHT: Active Groups table */}
+          <div style={{ background: T.bgCard, borderRadius: 14, overflow: "hidden", boxShadow: T.shadow, border: `1px solid ${T.border}`, position: "sticky", top: 76 }}>
+            <div style={{ padding: "12px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontWeight: 800, color: T.navy, fontSize: 13 }}>Active Groups ({activeGroups.length})</span>
+              <button onClick={loadActiveGroups} style={{ ...BTN.ghost, padding: "3px 8px", fontSize: 11 }}>↻</button>
+            </div>
+            <div style={{ maxHeight: "calc(100vh - 160px)", overflowY: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: T.bg, position: "sticky", top: 0 }}>
+                    {["Group", "SubCon", "Truck", "Order", ""].map(h => (
+                      <th key={h} style={{ padding: "7px 10px", textAlign: "left", fontWeight: 700, color: T.textSecond, fontSize: 10, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeGroups.length === 0 ? (
+                    <tr><td colSpan={5} style={{ textAlign: "center", padding: 20, color: T.textMuted, fontSize: 11 }}>ไม่มี Active Group</td></tr>
+                  ) : activeGroups.map((g, i) => (
+                    <tr key={g.group_number} style={{ background: i % 2 === 0 ? T.white : "#F8FAFF", borderBottom: `1px solid ${T.border}` }}>
+                      <td style={{ padding: "7px 10px", fontFamily: "monospace", fontWeight: 800, fontSize: 10, color: T.navy }}>{g.group_number}</td>
+                      <td style={{ padding: "7px 10px", fontSize: 10 }}>{g.subcon_code}</td>
+                      <td style={{ padding: "7px 10px" }}><StatusBadge status={g.status} size={9} /></td>
+                      <td style={{ padding: "7px 10px" }}>
+                        {g.orderStatus
+                          ? <StatusBadge status={g.orderStatus} size={9} />
+                          : <span style={{ fontSize: 9, color: T.textMuted }}>—</span>}
+                      </td>
+                      <td style={{ padding: "7px 8px" }}>
+                        <button
+                          onClick={() => { setWhScanId(g.group_number); loadWhGroup(g.group_number); }}
+                          style={{ ...BTN.ghost, padding: "2px 7px", fontSize: 10 }}>Open</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
