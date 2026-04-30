@@ -84,7 +84,8 @@ export default function Launcher({ user, onSelect, onLogout }) {
       </div>
 
       <div style={{ textAlign:"center", padding:16, fontSize:10, color:"rgba(255,255,255,.25)", borderTop:"1px solid rgba(255,255,255,.06)" }}>
-        YCH DMS v2.0 • Powered by Supabase + React • where supplychain connects™
+        YCH DMS v1.0 • where supplychain connects™
+        Designed & Built by Sitthiphong.p@ych.com
       </div>
     </div>
   );
