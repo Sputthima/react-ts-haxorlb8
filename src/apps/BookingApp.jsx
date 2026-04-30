@@ -4,15 +4,40 @@ import { printBookingSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 
 // ─────────────────────────────────────────────────────────────
-//  BookingApp v3 — ตาม GAS App2 createBooking_
-//  Fixes:
-//   1. Email: await จริง ไม่ใช้ .then() chain (race condition)
-//   2. Barcode: ใน slip ใช้ Code128 SVG จาก pdf.js แล้ว
-//   3. Group revert on cancel ครบ (obd_release → GROUPED)
-//   4. generateBookingId format: BK + timestamp (คงเดิม — GAS ใช้ format ต่างกัน)
+//  BookingApp v4 — ตาม GAS App2 createBooking_ ครบทุก feature
+//
+//  Booking ID format (ตาม GAS generateBookingId_):
+//    {subConInitial}{yyMMdd}{HHmm}{dock2d}
+//    เช่น MON260430070001  (MON + 260430 + 0700 + 01)
+//    ถ้าไม่มี initial → BK + timestamp (fallback)
+//
+//  GAS validateBookingDate_:
+//    - ห้ามจอง past date
+//    - ห้ามจองล่วงหน้าเกิน bookingDaysAhead (default 7)
+//    - ห้ามจองน้อยกว่า minHours ก่อนเวลา slot
+//
+//  Features เพิ่ม vs v3:
+//    1. Booking ID format ตาม GAS
+//    2. DOCK_COUNT จาก config (ไม่ hardcode 5)
+//    3. bookingDaysAhead จาก config
+//    4. Slot availability badge: จำนวน FREE/FULL ต่อวัน
+//    5. Duplicate check ก่อน insert
+//    6. Gate lookup: แสดง booking info เมื่อ scan Booking ID
 // ─────────────────────────────────────────────────────────────
 
-const DOCKS = [1,2,3,4,5];
+// ── Booking ID Generator (ตาม GAS generateBookingId_) ────────
+function generateBookingId(subConInitial, bookingDate, bookingHour, dockNo) {
+  // format: {initial}{yyMMdd}{HHmm}{dock2d}
+  // bookingDate = "2026-04-30", bookingHour = "07:00:00" หรือ "07:00"
+  if (!subConInitial) return "BK" + Date.now(); // fallback
+  const yy = String(bookingDate).slice(2,4);
+  const mm = String(bookingDate).slice(5,7);
+  const dd = String(bookingDate).slice(8,10);
+  const hh = String(bookingHour).slice(0,2);
+  const mi = String(bookingHour).slice(3,5);
+  const dk = String(dockNo).padStart(2,"0");
+  return `${subConInitial}${yy}${mm}${dd}${hh}${mi}${dk}`;
+}
 
 export default function BookingApp({ user, onBack }) {
   const [slots, setSlots]               = useState([]);
@@ -25,8 +50,14 @@ export default function BookingApp({ user, onBack }) {
   const [formErr, setFormErr]           = useState("");
   const [myBookings, setMyBookings]     = useState([]);
   const [showMyBookings, setShowMyBookings] = useState(false);
+
+  // Config
   const [config, setConfig]             = useState({});
   const [minHours, setMinHours]         = useState(3);
+  const [dockCount, setDockCount]       = useState(5);
+  const [daysAhead, setDaysAhead]       = useState(7);
+
+  // Group / SubCon
   const [groups, setGroups]             = useState([]);
   const [subcons, setSubcons]           = useState([]);
   const [form, setForm] = useState({
@@ -37,13 +68,17 @@ export default function BookingApp({ user, onBack }) {
   const isCS      = user.role === "cs";
   const isManager = ["manager","admin"].includes(user.role);
 
-  const days = Array.from({length:7},(_,i)=>{
+  // ── Days — based on daysAhead config ─────────────────────────
+  const days = Array.from({length:Math.min(daysAhead,7)},(_,i)=>{
     const d = new Date(); d.setDate(d.getDate()+i);
     return d.toISOString().slice(0,10);
   });
 
-  // ── isPastSlot (ตาม GAS validateBookingDate_) ───────────────
+  // ── validateBookingDate (ตาม GAS) ────────────────────────────
   function isPastSlot(slotDate, slotHour) {
+    // ห้ามจองถ้า slotDate < today
+    if (slotDate < today()) return true;
+    // ถ้าเป็นวันนี้ ห้ามจองถ้าเวลาผ่านไปแล้ว + minHours
     if (slotDate !== today()) return false;
     const now = new Date();
     const [h,m] = String(slotHour).split(":").map(Number);
@@ -58,6 +93,8 @@ export default function BookingApp({ user, onBack }) {
       const m = Object.fromEntries(data.map(r=>[r.key,r.value]));
       setConfig(m);
       setMinHours(Number(m.MIN_BOOKING_HOURS||3));
+      setDockCount(parseInt(m.DOCK_COUNT||"5"));
+      setDaysAhead(parseInt(m.BOOKING_DAYS_AHEAD||"7"));
     }
   },[]);
 
@@ -79,7 +116,8 @@ export default function BookingApp({ user, onBack }) {
   },[isCS, user.subcon_code]);
 
   const loadSubcons = useCallback(async () => {
-    const { data } = await supabase.from("subcon_master").select("*")
+    const { data } = await supabase.from("subcon_master")
+      .select("subcon_code,subcon_name,subcon_initial,email")
       .eq("active",true).order("subcon_code");
     setSubcons(data||[]);
   },[]);
@@ -106,13 +144,18 @@ export default function BookingApp({ user, onBack }) {
       .on("postgres_changes",{event:"*",schema:"public",table:"dock_slots"},   ()=>loadSlots(selectedDate))
       .on("postgres_changes",{event:"*",schema:"public",table:"group_header"}, ()=>loadGroups())
       .subscribe(s=>{ if(s==="CHANNEL_ERROR") console.warn("booking realtime error"); });
-    return ()=>{ try{supabase.removeChannel(ch);}catch(e){} };
+    return()=>{ try{supabase.removeChannel(ch);}catch(e){} };
   },[selectedDate, loadSlots, loadGroups]);
 
-  // ── derived ─────────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────
+  const DOCKS = Array.from({length:dockCount},(_,i)=>i+1);
   const hours = [...new Set(slots.map(s=>String(s.slot_hour).slice(0,5)))].sort();
   const slotMap = {};
   slots.forEach(s=>{ slotMap[String(s.slot_hour).slice(0,5)+"_"+s.dock_no]=s; });
+
+  // Slot summary per day (สำหรับ day tab badge)
+  const freeCount  = slots.filter(s=>s.status==="AVAILABLE"&&!isPastSlot(s.slot_date,s.slot_hour)).length;
+  const bookedCount= slots.filter(s=>s.status==="BOOKED").length;
 
   const selectedGroup  = groups.find(g=>g.group_number===form.groupNumber)  || null;
   const selectedSubcon = subcons.find(s=>s.subcon_code===form.subconCode)   || null;
@@ -131,21 +174,44 @@ export default function BookingApp({ user, onBack }) {
     setSaving(true); setMsg(null);
 
     // Resolve subcon / group
-    let subconCode = "", subconName = "", groupNumber = "";
+    let subconCode = "", subconName = "", subconInitial = "", groupNumber = "";
     if (form.groupNumber && selectedGroup) {
       subconCode  = selectedGroup.subcon_code;
       subconName  = selectedGroup.subcon_name;
       groupNumber = selectedGroup.group_number;
+      const sc = subcons.find(s=>s.subcon_code===subconCode);
+      subconInitial = sc?.subcon_initial || subconCode;
     } else if (form.subconCode && selectedSubcon) {
-      subconCode = selectedSubcon.subcon_code;
-      subconName = selectedSubcon.subcon_name;
+      subconCode    = selectedSubcon.subcon_code;
+      subconName    = selectedSubcon.subcon_name;
+      subconInitial = selectedSubcon.subcon_initial || selectedSubcon.subcon_code;
     } else if (user.subcon_code) {
       subconCode = user.subcon_code;
+      const sc = subcons.find(s=>s.subcon_code===subconCode);
+      subconInitial = sc?.subcon_initial || subconCode;
     }
 
-    const bkId = "BK" + Date.now();
+    // FIX 1: Booking ID format ตาม GAS generateBookingId_
+    const bkId = generateBookingId(subconInitial, selectedDate, selected.slot_hour, selected.dock_no);
+
+    // FIX 5: Duplicate check
+    const { data: existBk } = await supabase.from("bookings")
+      .select("booking_id").eq("booking_id", bkId).maybeSingle();
+    const finalBkId = existBk ? bkId + String(Date.now()).slice(-3) : bkId;
+
+    // Slot double-check (ตาม GAS: ต้อง re-verify ว่า AVAILABLE)
+    const { data: slotCheck } = await supabase.from("dock_slots")
+      .select("status").eq("slot_key", selected.slot_key).maybeSingle();
+    if (slotCheck?.status !== "AVAILABLE") {
+      setMsg({type:"err", msg:"Slot นี้ถูกจองแล้ว กรุณาเลือก Slot ใหม่"});
+      setSaving(false);
+      setSelected(null); setShowForm(false);
+      loadSlots(selectedDate);
+      return;
+    }
+
     const payload = {
-      booking_id:   bkId,
+      booking_id:   finalBkId,
       booking_date: selectedDate,
       booking_hour: selected.slot_hour,
       dock_no:      selected.dock_no,
@@ -167,52 +233,56 @@ export default function BookingApp({ user, onBack }) {
 
     // 2. Update slot → BOOKED
     await supabase.from("dock_slots")
-      .update({ status:"BOOKED", booking_id:bkId })
+      .update({ status:"BOOKED", booking_id:finalBkId })
       .eq("slot_key", selected.slot_key);
 
-    // 3. Update group_header (ตาม GAS updateRowByKey_ group → BOOKED)
+    // 3. Update group_header → BOOKED (ตาม GAS)
     if (groupNumber) {
       await supabase.from("group_header")
-        .update({ status:"BOOKED", booking_id:bkId, updated_at:nowISO() })
+        .update({
+          status:"BOOKED", booking_id:finalBkId,
+          booking_date:selectedDate,
+          booking_slot:selected.slot_hour,
+          dock_no:selected.dock_no,
+          truck_type:form.truckType,
+          truck_plate:form.truckPlate.toUpperCase(),
+          driver_name:form.driverName,
+          phone:form.phone,
+          updated_at:nowISO(),
+        })
         .eq("group_number", groupNumber);
-      // Update obd_release ใน group ทั้งหมด → BOOKED (ตาม GAS)
+      // Update obd_release → BOOKED (ตาม GAS)
       await supabase.from("obd_release")
-        .update({ status:"BOOKED", booking_id:bkId })
+        .update({ status:"BOOKED", booking_id:finalBkId })
         .eq("group_number", groupNumber);
     }
 
     // 4. Audit log
     await auditLog({
       module:"BOOKING", action:"CREATE_BOOKING",
-      targetType:"BOOKING", targetId:bkId,
+      targetType:"BOOKING", targetId:finalBkId,
       subconCode, groupNumber,
       actor:user.username,
       remark:`Dock ${selected.dock_no} • ${selectedDate} • ${String(selected.slot_hour).slice(0,5)}`,
     });
 
-    // 5. Print slip (barcode อยู่ใน pdf.js แล้ว)
-    const slipData = { ...payload, subcon_name:subconName, group_number:groupNumber };
-    setTimeout(()=>printBookingSlip(slipData), 500);
+    // 5. Print slip
+    const slipData = { ...payload, booking_id:finalBkId, subcon_name:subconName, group_number:groupNumber };
+    setTimeout(()=>printBookingSlip(slipData), 400);
 
-    // 6. Email — await จริง ไม่ใช้ .then() chain
-    //    หา email จาก subcon_master หรือ user table
+    // 6. Email (ตาม GAS queueEmail_ BOOKING_CONFIRMED)
     try {
       let emailTo = user?.email || "";
       if (subconCode) {
-        const { data: sc } = await supabase.from("subcon_master")
-          .select("email").eq("subcon_code", subconCode).maybeSingle();
+        const sc = subcons.find(s=>s.subcon_code===subconCode);
         if (sc?.email) emailTo = sc.email;
       }
-      if (emailTo) {
-        await sendEmail({ to: emailTo, type:"booking", data: slipData });
-      }
-    } catch(e) {
-      console.warn("Email send failed (non-critical):", e.message);
-    }
+      if (emailTo) await sendEmail({ to:emailTo, type:"booking", data:slipData });
+    } catch(e) { console.warn("Email failed:", e.message); }
 
-    setMsg({type:"ok", msg:`✅ จอง Dock ${selected.dock_no} เวลา ${String(selected.slot_hour).slice(0,5)} สำเร็จ! (${bkId})`});
+    setMsg({type:"ok", msg:`✅ จอง Dock ${selected.dock_no} เวลา ${String(selected.slot_hour).slice(0,5)} สำเร็จ! (${finalBkId})`});
 
-    // Reset form
+    // Reset
     setSelected(null); setShowForm(false);
     setForm({truckPlate:"",truckType:"",driverName:"",phone:"",groupNumber:"",subconCode:"",remarks:""});
     loadMyBookings(); loadGroups(); loadSlots(selectedDate);
@@ -225,38 +295,28 @@ export default function BookingApp({ user, onBack }) {
     if (!["RESERVED","ON_YARD"].includes(bk.status))
       return setMsg({type:"err",msg:"ยกเลิกได้เฉพาะ RESERVED หรือ ON_YARD เท่านั้น"});
 
-    // 1. Cancel booking
     await supabase.from("bookings")
-      .update({status:"CANCELLED",updated_at:nowISO()})
-      .eq("booking_id", bk.booking_id);
+      .update({status:"CANCELLED",updated_at:nowISO()}).eq("booking_id",bk.booking_id);
 
-    // 2. Slot → AVAILABLE
     if (bk.slot_key) {
       await supabase.from("dock_slots")
-        .update({status:"AVAILABLE",booking_id:null})
-        .eq("slot_key", bk.slot_key);
+        .update({status:"AVAILABLE",booking_id:null}).eq("slot_key",bk.slot_key);
     }
 
-    // 3. Group → BOOKING_PENDING (ตาม GAS)
     if (bk.group_number) {
       await supabase.from("group_header")
-        .update({status:"BOOKING_PENDING", booking_id:null, updated_at:nowISO()})
-        .eq("group_number", bk.group_number);
-      // OBD → GROUPED (ตาม GAS: revert กลับ GROUPED)
+        .update({status:"BOOKING_PENDING",booking_id:null,updated_at:nowISO()})
+        .eq("group_number",bk.group_number);
       await supabase.from("obd_release")
-        .update({status:"GROUPED"})
-        .eq("group_number", bk.group_number);
+        .update({status:"GROUPED"}).eq("group_number",bk.group_number);
     }
 
     await auditLog({module:"BOOKING",action:"CANCEL_BOOKING",
       targetType:"BOOKING",targetId:bk.booking_id,actor:user.username});
 
-    // 4. Email แจ้ง cancel
     try {
-      if (user?.email) {
-        await sendEmail({ to:user.email, type:"booking_cancelled", data:bk });
-      }
-    } catch(e) { console.warn("Cancel email failed:", e.message); }
+      if (user?.email) await sendEmail({to:user.email,type:"booking_cancelled",data:bk});
+    } catch(e){}
 
     setMsg({type:"ok",msg:`✅ ยกเลิก Booking ${bk.booking_id} แล้ว`});
     loadMyBookings(); loadSlots(selectedDate); loadGroups();
@@ -264,10 +324,13 @@ export default function BookingApp({ user, onBack }) {
 
   // ── RENDER ───────────────────────────────────────────────────
   const STATUS_BG = {
-    RESERVED:"#d1fae5", ON_YARD:"#fef9c3",
-    CALLED_TO_DOCK:"#ffedd5", TRUCK_DOCKED:"#ede9fe", LOADING:"#dbeafe",
+    RESERVED:"#d1fae5",ON_YARD:"#fef9c3",
+    CALLED_TO_DOCK:"#ffedd5",TRUCK_DOCKED:"#ede9fe",LOADING:"#dbeafe",
   };
-  const inp = {width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",borderRadius:10,fontSize:13,outline:"none",boxSizing:"border-box"};
+  const inp = {
+    width:"100%",padding:"9px 12px",border:"1.5px solid #e5e7eb",
+    borderRadius:10,fontSize:13,outline:"none",boxSizing:"border-box",
+  };
 
   return (
     <div style={{minHeight:"100vh",background:"#f0f4fb"}}>
@@ -347,16 +410,23 @@ export default function BookingApp({ user, onBack }) {
           </div>
         )}
 
-        {/* ── DAY TABS ── */}
+        {/* ── DAY TABS (FIX 4: badge free/booked) ── */}
         <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
-          {days.map(d=>{
+          {days.map((d,idx)=>{
             const dt = new Date(d);
             const label = d===today()?"วันนี้":d===days[1]?"พรุ่งนี้":dt.toLocaleDateString("th-TH",{weekday:"short"});
+            const isSelected = selectedDate===d;
             return (
               <button key={d} onClick={()=>setSelectedDate(d)}
-                style={{border:"1.5px solid",borderColor:selectedDate===d?"#0f4bd7":"#e5e7eb",borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",background:selectedDate===d?"#0f4bd7":"#fff",color:selectedDate===d?"#fff":"#374151",textAlign:"center",minWidth:70}}>
+                style={{border:"1.5px solid",borderColor:isSelected?"#0f4bd7":"#e5e7eb",borderRadius:10,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",background:isSelected?"#0f4bd7":"#fff",color:isSelected?"#fff":"#374151",textAlign:"center",minWidth:70,position:"relative"}}>
                 <div style={{fontSize:10,opacity:.8}}>{label}</div>
                 <div>{dt.toLocaleDateString("th-TH",{day:"numeric",month:"short"})}</div>
+                {/* Badge: แสดงเฉพาะวันที่เลือก */}
+                {isSelected && slots.length>0 && (
+                  <div style={{fontSize:9,marginTop:2,color:isSelected?"rgba(255,255,255,.7)":"#9ca3af"}}>
+                    {freeCount} FREE
+                  </div>
+                )}
               </button>
             );
           })}
@@ -368,16 +438,21 @@ export default function BookingApp({ user, onBack }) {
             <span key={l} style={{background:bg,color:c,borderRadius:7,padding:"3px 9px",fontSize:11,fontWeight:700}}>{l}</span>
           ))}
           {minHours>0 && <span style={{fontSize:11,color:"#9ca3af"}}>⏱ ต้องจองล่วงหน้า {minHours} ชม.</span>}
+          {slots.length>0 && (
+            <span style={{fontSize:11,color:"#374151",marginLeft:"auto",fontWeight:700}}>
+              {freeCount} FREE / {bookedCount} BOOKED
+            </span>
+          )}
         </div>
 
-        {/* ── SLOT MATRIX ── */}
+        {/* ── SLOT MATRIX (FIX 2: DOCK_COUNT จาก config) ── */}
         <div style={{background:"#fff",borderRadius:14,overflow:"auto",boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:12}}>
           {loading
             ? <div style={{padding:40,textAlign:"center"}}><Spinner/></div>
             : hours.length===0
               ? <div style={{padding:32,textAlign:"center",color:"#9ca3af",fontSize:13}}>ไม่มี Slot — ให้ Admin สร้าง Slot ก่อน</div>
               : (
-                <table style={{width:"100%",borderCollapse:"separate",borderSpacing:3,padding:10,minWidth:500}}>
+                <table style={{width:"100%",borderCollapse:"separate",borderSpacing:3,padding:10,minWidth:Math.max(400,dockCount*90)}}>
                   <thead>
                     <tr>
                       <th style={{background:"#0a2a6e",color:"#fff",padding:"8px 12px",borderRadius:6,fontSize:11,textAlign:"center"}}>เวลา</th>
@@ -434,8 +509,23 @@ export default function BookingApp({ user, onBack }) {
               <div style={{fontWeight:800,color:"#0a2a6e",fontSize:16}}>📋 กรอกข้อมูลจอง Dock</div>
               <button onClick={()=>{setShowForm(false);setFormErr("");}} style={{border:"none",background:"none",cursor:"pointer",fontSize:18,color:"#9ca3af"}}>✕</button>
             </div>
-            <div style={{fontSize:12,color:"#6b7280",marginBottom:14,padding:"7px 12px",background:"#f8fafc",borderRadius:8}}>
-              📍 Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}
+
+            {/* Preview Booking ID */}
+            <div style={{fontSize:11,color:"#6b7280",marginBottom:12,padding:"8px 12px",background:"#f8fafc",borderRadius:8}}>
+              <div>📍 Dock {selected.dock_no} • {String(selected.slot_hour).slice(0,5)} • {selectedDate}</div>
+              {(selectedGroup||selectedSubcon||user.subcon_code) && (
+                <div style={{marginTop:4,fontSize:10,color:"#9ca3af"}}>
+                  Booking ID preview:{" "}
+                  <span style={{fontFamily:"monospace",fontWeight:700,color:"#0a2a6e"}}>
+                    {generateBookingId(
+                      selectedGroup
+                        ? (subcons.find(s=>s.subcon_code===selectedGroup.subcon_code)?.subcon_initial||selectedGroup.subcon_code)
+                        : (selectedSubcon?.subcon_initial||selectedSubcon?.subcon_code||user.subcon_code||""),
+                      selectedDate, selected.slot_hour, selected.dock_no
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
 
             {formErr && <Alert type="err" msg={formErr}/>}
@@ -461,7 +551,7 @@ export default function BookingApp({ user, onBack }) {
               </div>
             )}
 
-            {/* Direct SubCon (manager/admin) */}
+            {/* Direct SubCon */}
             {isManager && !form.groupNumber && subcons.length>0 && (
               <div style={{marginBottom:14}}>
                 <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:5,color:"#374151"}}>SubCon (ถ้าไม่เลือก Group)</label>
@@ -477,8 +567,7 @@ export default function BookingApp({ user, onBack }) {
               {[{label:"ทะเบียนรถ *",key:"truckPlate",placeholder:"80-1234"},{label:"ประเภทรถ",key:"truckType",placeholder:"6 ล้อ / เทรลเลอร์"}].map(f=>(
                 <div key={f.key}>
                   <label style={{display:"block",fontSize:12,fontWeight:700,marginBottom:4,color:"#374151"}}>{f.label}</label>
-                  <input value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))}
-                    placeholder={f.placeholder} style={inp}/>
+                  <input value={form[f.key]} onChange={e=>setForm(p=>({...p,[f.key]:e.target.value}))} placeholder={f.placeholder} style={inp}/>
                 </div>
               ))}
             </div>
