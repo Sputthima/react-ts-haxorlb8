@@ -149,16 +149,39 @@ export default function GateApp({ user, onBack }) {
   },[]);
 
   const loadActiveGroups = useCallback(async () => {
-    const [{ data: grp }, { data: go }] = await Promise.all([
+    // ตัด COMPLETED ออก + join booking เพื่อดู booking_hour, dock_no
+    const [{ data: grp }, { data: go }, { data: bk }] = await Promise.all([
       supabase.from("group_header")
-        .select("group_number,subcon_code,status,dock_no,total_qty,booking_id")
-        .in("status",["BOOKED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING","COMPLETED"])
-        .order("group_number",{ascending:false}).limit(50),
+        .select("group_number,subcon_code,subcon_name,status,dock_no,total_qty,total_obd,booking_id")
+        .in("status",["BOOKED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"])
+        .order("group_number",{ascending:false}).limit(100),
       supabase.from("group_orders").select("group_number,status"),
+      supabase.from("bookings")
+        .select("booking_id,booking_hour,booking_date,dock_no,truck_plate,check_in_time,status")
+        .in("status",["RESERVED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"]),
     ]);
     const orderMap = {};
     (go||[]).forEach(o=>{ orderMap[o.group_number]=o.status; });
-    setActiveGroups((grp||[]).map(g=>({...g, orderStatus:orderMap[g.group_number]||""})));
+    const bookingMap = {};
+    (bk||[]).forEach(b=>{ bookingMap[b.booking_id]=b; });
+    setActiveGroups((grp||[]).map(g=>{
+      const booking = g.booking_id ? (bookingMap[g.booking_id]||null) : null;
+      return {
+        ...g,
+        orderStatus:orderMap[g.group_number]||"",
+        booking_hour: booking?.booking_hour||"",
+        booking_date: booking?.booking_date||"",
+        dock_no_actual: booking?.dock_no||g.dock_no||"",
+        truck_plate:  booking?.truck_plate||"",
+        check_in_time:booking?.check_in_time||"",
+      };
+    // sort ตาม booking_hour แล้ว dock_no — ops เห็นลำดับงานถูกเสมอ
+    }).sort((a,b)=>{
+      const ta = String(a.booking_hour).slice(0,5);
+      const tb = String(b.booking_hour).slice(0,5);
+      if (ta!==tb) return ta<tb?-1:1;
+      return (a.dock_no_actual||0)-(b.dock_no_actual||0);
+    }));
   },[]);
 
   useEffect(()=>{ loadActive(); },[loadActive]);
@@ -527,45 +550,121 @@ export default function GateApp({ user, onBack }) {
         <div style={{padding:14,maxWidth:1100,margin:"0 auto"}}>
           {whMsg && <Alert type={whMsg.type} msg={whMsg.msg}/>}
 
-          {/* FIX: Active Groups — accordion ทำงานทั้ง mobile+desktop */}
+          {/* ─── ACTIVE GROUPS — List view เรียงตามเวลา+Dock ────── */}
           <div style={{background:"#fff",borderRadius:14,overflow:"hidden",boxShadow:"0 4px 20px rgba(0,0,0,.07)",marginBottom:14}}>
-            <button
-              onClick={()=>setShowActiveGroups(p=>!p)}
-              style={{width:"100%",padding:"12px 16px",background:"none",border:"none",cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:showActiveGroups?"1px solid #e5e7eb":"none"}}>
-              <span style={{fontWeight:800,color:"#0a2a6e",fontSize:13}}>Active Groups ({activeGroups.length})</span>
-              <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                <button onClick={e=>{e.stopPropagation();loadActiveGroups();}} style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:6,padding:"2px 8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>↻</button>
-                <span style={{color:"#9ca3af",fontSize:14}}>{showActiveGroups?"▲":"▼"}</span>
+            {/* Header */}
+            <div style={{padding:"11px 16px",borderBottom:"1px solid #e5e7eb",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a2a6e"}}>
+              <div>
+                <span style={{fontWeight:800,color:"#fff",fontSize:13}}>Active Groups ({activeGroups.length})</span>
+                <span style={{fontSize:10,color:"rgba(255,255,255,.4)",marginLeft:8}}>เรียงตามเวลานัด → Dock</span>
               </div>
-            </button>
-            {showActiveGroups && (
-              <div style={{overflowX:"auto"}}>
-                {activeGroups.length===0 ? (
-                  <div style={{padding:20,textAlign:"center",color:"#9ca3af",fontSize:12}}>ไม่มี Active Group</div>
-                ) : (
-                  <div style={{display:"flex",flexWrap:"wrap",gap:8,padding:12}}>
-                    {activeGroups.map(g=>{
-                      const dotColor = truckStatusColor(g.status);
-                      return (
-                        <div key={g.group_number}
-                          style={{background:"#f8fafc",borderRadius:10,padding:"8px 12px",border:`1.5px solid ${dotColor}33`,minWidth:160,cursor:"pointer",position:"relative"}}
-                          onClick={()=>{ setWhScanId(g.group_number); loadWhGroup(g.group_number); }}>
-                          <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:4}}>
-                            <div style={{width:7,height:7,borderRadius:"50%",background:dotColor,flexShrink:0}}/>
-                            <span style={{fontFamily:"monospace",fontWeight:800,fontSize:11,color:"#0a2a6e"}}>{g.group_number}</span>
-                          </div>
-                          <div style={{fontSize:10,color:"#6b7280"}}>{g.subcon_code}</div>
-                          <div style={{display:"flex",gap:4,marginTop:4,flexWrap:"wrap"}}>
-                            <StatusBadge status={g.status}/>
-                            {g.orderStatus && <StatusBadge status={g.orderStatus}/>}
-                          </div>
-                        </div>
-                      );
-                    })}
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                {/* Mini KPI */}
+                {[
+                  {label:"BOOKED",    val:activeGroups.filter(g=>g.status==="BOOKED").length,    c:"#86efac"},
+                  {label:"ON YARD",   val:activeGroups.filter(g=>g.status==="ON_YARD").length,   c:"#fcd34d"},
+                  {label:"AT DOCK",   val:activeGroups.filter(g=>["CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"].includes(g.status)).length, c:"#c4b5fd"},
+                ].map(k=>k.val>0&&(
+                  <div key={k.label} style={{textAlign:"center"}}>
+                    <div style={{fontSize:14,fontWeight:900,color:k.c,fontFamily:"monospace",lineHeight:1}}>{k.val}</div>
+                    <div style={{fontSize:8,color:"rgba(255,255,255,.4)",letterSpacing:.5}}>{k.label}</div>
                   </div>
-                )}
+                ))}
+                <button onClick={loadActiveGroups} style={{background:"rgba(255,255,255,.1)",color:"#fff",border:"none",borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",marginLeft:4}}>↻</button>
+              </div>
+            </div>
+
+            {/* Column headers */}
+            {activeGroups.length>0 && (
+              <div style={{display:"grid",gridTemplateColumns:"46px 70px 1fr 80px 70px 80px 70px",gap:0,padding:"5px 12px",background:"#f8fafc",borderBottom:"1px solid #e5e7eb"}}>
+                {["Dock","เวลา","Group","SubCon","Truck Status","Order","Plate"].map(h=>(
+                  <div key={h} style={{fontSize:9,fontWeight:700,color:"#9ca3af",letterSpacing:.5}}>{h}</div>
+                ))}
               </div>
             )}
+
+            {/* List rows */}
+            <div style={{maxHeight:360,overflowY:"auto"}}>
+              {activeGroups.length===0 ? (
+                <div style={{padding:24,textAlign:"center",color:"#9ca3af",fontSize:12}}>ไม่มี Active Group</div>
+              ) : activeGroups.map((g,i)=>{
+                const dot = truckStatusColor(g.status);
+                const isAtDock  = ["TRUCK_DOCKED","LOADING"].includes(g.status);
+                const isCalled  = g.status==="CALLED_TO_DOCK";
+                const isOnYard  = g.status==="ON_YARD";
+                const rowBg     = isAtDock?"#f5f3ff":isCalled?"#fff7ed":isOnYard?"#fefce8":"#fff";
+                const rowBorder = isAtDock?"#7c3aed22":isCalled?"#f59e0b22":isOnYard?"#fbbf2422":"#f3f4f6";
+                const nowTime   = new Date();
+                const [hh,mm]   = String(g.booking_hour||"00:00").split(":").map(Number);
+                const slotTime  = new Date(nowTime.getFullYear(),nowTime.getMonth(),nowTime.getDate(),hh,mm||0);
+                const minsLeft  = Math.floor((slotTime-nowTime)/60000);
+                const timeColor = minsLeft<0?"#dc2626":minsLeft<30?"#d97706":"#374151";
+
+                return (
+                  <div key={g.group_number}
+                    onClick={()=>{ setWhScanId(g.group_number); loadWhGroup(g.group_number); }}
+                    style={{display:"grid",gridTemplateColumns:"46px 70px 1fr 80px 70px 80px 70px",
+                      gap:0,padding:"8px 12px",borderBottom:`1px solid ${rowBorder}`,
+                      background:rowBg,cursor:"pointer",alignItems:"center",
+                      borderLeft:`3px solid ${dot}`,
+                      transition:"background .15s"}}>
+
+                    {/* Dock */}
+                    <div style={{fontWeight:900,fontSize:15,color:"#0a2a6e",fontFamily:"monospace"}}>
+                      {g.dock_no_actual||"—"}
+                    </div>
+
+                    {/* เวลา */}
+                    <div>
+                      <div style={{fontWeight:800,fontSize:13,color:timeColor,fontFamily:"monospace"}}>
+                        {String(g.booking_hour||"").slice(0,5)||"—"}
+                      </div>
+                      {g.booking_hour && (
+                        <div style={{fontSize:9,color:timeColor,fontWeight:600}}>
+                          {minsLeft<0?`เลย${-minsLeft}m`:minsLeft<60?`${minsLeft}m`:minsLeft<120?`${Math.floor(minsLeft/60)}h${minsLeft%60}m`:""}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Group */}
+                    <div>
+                      <div style={{fontFamily:"monospace",fontWeight:700,fontSize:11,color:"#0a2a6e"}}>{g.group_number}</div>
+                      <div style={{fontSize:9,color:"#9ca3af"}}>{g.total_obd||0} OBD · {g.total_qty||0} pcs</div>
+                    </div>
+
+                    {/* SubCon */}
+                    <div style={{fontSize:11,fontWeight:700,color:"#374151"}}>{g.subcon_code}</div>
+
+                    {/* Truck Status */}
+                    <div>
+                      <div style={{display:"flex",alignItems:"center",gap:4}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:dot,flexShrink:0}}/>
+                        <span style={{fontSize:9,fontWeight:700,color:dot}}>
+                          {g.status.replace(/_/g," ")}
+                        </span>
+                      </div>
+                      {g.check_in_time && (
+                        <div style={{fontSize:9,color:"#9ca3af",marginTop:1}}>
+                          เข้า {new Date(g.check_in_time).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Order */}
+                    <div style={{fontSize:9,fontWeight:700,
+                      color:g.orderStatus==="READY_FOR_LOADING"?"#16a34a":
+                           g.orderStatus==="LOADING"?"#1d4ed8":
+                           g.orderStatus?"#374151":"#d1d5db"}}>
+                      {g.orderStatus?g.orderStatus.replace(/_/g," "):"—"}
+                    </div>
+
+                    {/* Plate */}
+                    <div style={{fontFamily:"monospace",fontSize:10,fontWeight:700,
+                      color:"#374151"}}>{g.truck_plate||"—"}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Group search + detail */}
