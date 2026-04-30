@@ -152,7 +152,7 @@ export default function Login({ onLogin }) {
         </form>
 
         <p style={{ fontSize: 10, color: T.textMuted, textAlign: "center", marginTop: 20 }}>
-          Powered by Supabase + React • YCH Group
+          • YCH Thailand • 
         </p>
       </div>
     </div>
