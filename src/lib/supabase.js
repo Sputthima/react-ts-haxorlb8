@@ -5,15 +5,64 @@ export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
+// ─────────────────────────────────────────────────────────────
+//  Timezone helpers — ใช้ Local time เสมอ (Asia/Bangkok UTC+7)
+//
+//  BUG เดิม: toISOString() คืน UTC → วันผิดถ้าใช้งานตี 0-7 น.
+//    new Date().toISOString() → "2026-04-30T17:00:00Z" (UTC)
+//    ทั้งที่ไทยเป็น 2026-05-01 00:00 แล้ว
+//
+//  FIX: ใช้ local date parts จาก getFullYear/getMonth/getDate
+// ─────────────────────────────────────────────────────────────
+
+// วันที่วันนี้ใน local timezone → "2026-05-01"
 export function today() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
 }
 
+// local ISO timestamp → "2026-05-01T00:05:00+07:00"
+// ใช้สำหรับ insert/update timestamp ใน DB
+// Supabase/Postgres รับ ISO with offset ได้ถูกต้อง
 export function nowISO() {
-  return new Date().toISOString();
+  const d = new Date();
+  // offset นาที → แปลงเป็น ±HH:MM
+  const off = -d.getTimezoneOffset(); // getTimezoneOffset คืนค่า inverted
+  const sign   = off>=0?"+":"-";
+  const absOff = Math.abs(off);
+  const oh = String(Math.floor(absOff/60)).padStart(2,"0");
+  const om = String(absOff%60).padStart(2,"0");
+  // pad local parts
+  const y  = d.getFullYear();
+  const mo = String(d.getMonth()+1).padStart(2,"0");
+  const dy = String(d.getDate()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mi = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  return `${y}-${mo}-${dy}T${hh}:${mi}:${ss}${sign}${oh}:${om}`;
 }
 
-// ── Audit log ─────────────────────────────────────────────────────────────
+// แปลง Date object เป็น "YYYY-MM-DD" local
+export function dateToLocal(d) {
+  if (!d) return "";
+  const dt = typeof d==="string" ? new Date(d) : d;
+  const y  = dt.getFullYear();
+  const m  = String(dt.getMonth()+1).padStart(2,"0");
+  const dy = String(dt.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dy}`;
+}
+
+// วันข้างหน้า N วัน (local)
+export function addDaysLocal(n) {
+  const d = new Date();
+  d.setDate(d.getDate()+n);
+  return dateToLocal(d);
+}
+
+// ── Audit log ─────────────────────────────────────────────────
 export async function auditLog({
   module, action, targetType, targetId,
   subconCode="", groupNumber="", bookingId="", actor="", remark=""
@@ -26,8 +75,7 @@ export async function auditLog({
   });
 }
 
-// ── Send Email via Edge Function ──────────────────────────────────────────
-// type: "booking" | "asn" | "booking_cancelled" | "custom"
+// ── Send Email via Edge Function ──────────────────────────────
 export async function sendEmail({ to, type, data, subject, html, text }) {
   if (!to) return;
   try {
@@ -50,7 +98,7 @@ export async function sendEmail({ to, type, data, subject, html, text }) {
   }
 }
 
-// ── Trigger Auto Slot Generation (Admin manual call) ──────────────────────
+// ── Trigger Auto Slot Generation ─────────────────────────────
 export async function triggerAutoSlots() {
   try {
     const res = await fetch(
