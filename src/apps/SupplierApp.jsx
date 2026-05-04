@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
+import { downloadASNTemplate } from "../lib/templates";
 import { printInboundSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 
@@ -76,7 +77,7 @@ export default function SupplierApp({ user, onBack }) {
   const [asnDetail, setAsnDetail] = useState(null); // {header, invoices, details}
 
   const days = Array.from({length:Math.min(daysAhead,7)},(_,i)=>{
-    const d=new Date(); d.setDate(d.getDate()+i); return d.toISOString().slice(0,10);
+    const d=new Date(); d.setDate(d.getDate()+i); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dy=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dy}`;
   });
   const DOCKS = Array.from({length:dockCount},(_,i)=>i+1);
 
@@ -662,7 +663,17 @@ export default function SupplierApp({ user, onBack }) {
               <code style={{fontSize:10}}>truckPlate, bookingDate, bookingHour, dockNo, shipDate, truckType, driverName, driverPhone, invoiceNo, invoiceDate, poNo, itemCode, itemName, unit, qtyShipped, lotNo, expiryDate</code>
               <div style={{marginTop:6,fontSize:10,color:"#9ca3af"}}>💡 rows ที่มี truckPlate+date+hour+dock เดียวกัน = 1 ASN | invoiceNo เดียวกัน = 1 Invoice</div>
             </div>
-            <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{marginBottom:12}}/>
+            <div style={{display:"flex",gap:10,alignItems:"center",marginBottom:12}}>
+              <label style={{background:"#059669",color:"#fff",borderRadius:8,padding:"7px 14px",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                📤 เลือกไฟล์ CSV
+                <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
+              </label>
+              <button onClick={downloadASNTemplate}
+                style={{background:"#fff",color:"#059669",border:"1.5px solid #059669",borderRadius:8,padding:"7px 14px",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                ⬇ Download Template
+              </button>
+              <span style={{fontSize:11,color:"#9ca3af"}}>ดาวน์โหลด template พร้อมตัวอย่าง</span>
+            </div>
             {bulkLoading && <Spinner/>}
 
             {bulkPreview.length>0 && (
