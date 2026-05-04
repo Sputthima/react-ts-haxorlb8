@@ -198,7 +198,7 @@ export default function AdminApp({ user, onBack }) {
 
   // ── SLOTS ─────────────────────────────────────────────────────
   const previewSlots = () => {
-    const days = Array.from({length:genDays},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()+i); return d.toISOString().slice(0,10); });
+    const days = Array.from({length:genDays},(_,i)=>{ const d=new Date(); d.setDate(d.getDate()+i); const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dy=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dy}`; });
     const hours = Array.from({length:endHour-startHour+1},(_,i)=>i+startHour);
     setSlotPreview({days,hours,total:days.length*hours.length*dockCount});
   };
