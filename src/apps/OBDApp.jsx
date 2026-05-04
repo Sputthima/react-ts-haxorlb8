@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
+import { downloadOBDTemplate } from "../lib/templates";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 import { T } from "../theme";
 
@@ -341,6 +342,10 @@ export default function OBDApp({ user, onBack }) {
               📤 Import CSV
               <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
             </label>
+            <button onClick={downloadOBDTemplate}
+              style={{background:"rgba(255,255,255,.15)",color:"#fff",border:"1px solid rgba(255,255,255,.3)",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
+              ⬇ Template
+            </button>
             {canGroup && (
               <button onClick={()=>setShowGroup(true)}
                 style={{background:"#F5A800",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
