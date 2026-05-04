@@ -27,7 +27,7 @@ function fmtTime(iso) {
 }
 function dateLabel(offset) { return ["วันนี้","พรุ่งนี้","มะรืน"][offset]||""; }
 function addDays(d, n) {
-  const x = new Date(d); x.setDate(x.getDate()+n); return x.toISOString().slice(0,10);
+  const x = new Date(d); x.setDate(x.getDate()+n); const y=x.getFullYear(),m=String(x.getMonth()+1).padStart(2,"0"),dy=String(x.getDate()).padStart(2,"0"); return `${y}-${m}-${dy}`;
 }
 
 // ── KPI Card ─────────────────────────────────────────────────
