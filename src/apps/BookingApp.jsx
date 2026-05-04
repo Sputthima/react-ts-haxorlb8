@@ -71,7 +71,7 @@ export default function BookingApp({ user, onBack }) {
   // ── Days — based on daysAhead config ─────────────────────────
   const days = Array.from({length:Math.min(daysAhead,7)},(_,i)=>{
     const d = new Date(); d.setDate(d.getDate()+i);
-    return d.toISOString().slice(0,10);
+    const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,"0"),dy=String(d.getDate()).padStart(2,"0"); return `${y}-${m}-${dy}`;
   });
 
   // ── validateBookingDate (ตาม GAS) ────────────────────────────
