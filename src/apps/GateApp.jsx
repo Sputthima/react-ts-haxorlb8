@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog } from "../lib/supabase";
+import { usePermissions } from "../lib/permissions";
 import { Alert, Spinner, StatusBadge, SectionHeader } from "../components/UI";
 import { T, BTN } from "../theme";
 
@@ -129,8 +130,9 @@ export default function GateApp({ user, onBack }) {
   // FIX: accordion state สำหรับ Active Groups panel บน mobile
   const [showActiveGroups, setShowActiveGroups] = useState(true);
 
-  const isGate = ["gate","admin","manager"].includes(user?.role);
-  const isWH   = ["warehouse","admin","manager"].includes(user?.role);
+  const p      = usePermissions(user);
+  const isGate = p.canGateAction;
+  const isWH   = p.canWhAction;
 
   // ── LOADERS ─────────────────────────────────────────────────
   const loadActive = useCallback(async () => {
