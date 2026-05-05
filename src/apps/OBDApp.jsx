@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
 import { downloadOBDTemplate } from "../lib/templates";
+import { usePermissions, applySubconFilter } from "../lib/permissions";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 import { T } from "../theme";
 
@@ -81,15 +82,19 @@ export default function OBDApp({ user, onBack }) {
   const [showBulk, setShowBulk]   = useState(false);
   const fileRef = useRef();
 
-  const isCS      = ["cs","manager","admin"].includes(user.role);
-  const isManager = ["manager","admin"].includes(user.role);
+  const p = usePermissions(user);
 
   // ── LOAD ─────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
+    // Subcon เห็นแค่ข้อมูลของตัวเอง
+    let obdQ = supabase.from("obd_release").select("*").order("created_at",{ascending:false}).limit(300);
+    let grpQ = supabase.from("group_header").select("*").order("created_at",{ascending:false}).limit(200);
+    obdQ = applySubconFilter(obdQ, user);
+    grpQ = applySubconFilter(grpQ, user);
     const [obdRes, grpRes, scRes] = await Promise.all([
-      supabase.from("obd_release").select("*").order("created_at",{ascending:false}).limit(300),
-      supabase.from("group_header").select("*").order("created_at",{ascending:false}).limit(200),
+      obdQ,
+      grpQ,
       supabase.from("subcon_master").select("*").eq("active",true).order("subcon_code"),
     ]);
     if (obdRes.data) setObdList(obdRes.data);
@@ -334,10 +339,12 @@ export default function OBDApp({ user, onBack }) {
 
         <div style={{marginLeft:"auto",display:"flex",gap:6,flexWrap:"wrap"}}>
           {tab==="obd" && <>
-            <button onClick={()=>setShowCreate(true)}
-              style={{background:"#4ADE80",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
-              + สร้าง OBD
-            </button>
+            {p.canCreateOBD && (
+              <button onClick={()=>setShowCreate(true)}
+                style={{background:"#4ADE80",color:"#fff",border:"none",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
+                + สร้าง OBD
+              </button>
+            )}
             <label style={{background:"#1d4ed8",color:"#fff",borderRadius:8,padding:"5px 12px",fontWeight:700,cursor:"pointer",fontSize:12}}>
               📤 Import CSV
               <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} style={{display:"none"}}/>
@@ -435,7 +442,7 @@ export default function OBDApp({ user, onBack }) {
                           </td>
                           <td style={{...td,fontFamily:"monospace",fontSize:10,color:"#6b7280"}}>{o.group_number||"—"}</td>
                           <td style={td}>
-                            {o.status==="OPEN" && isCS && (
+                            {o.status==="OPEN" && p.canCancelOBD && (
                               <button onClick={e=>{e.stopPropagation();cancelOBD(o);}}
                                 style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
                                 ✕ ยกเลิก
@@ -499,7 +506,7 @@ export default function OBDApp({ user, onBack }) {
                                 📋 ดู OBD
                               </button>
                               {/* FIX 3: Cancel group BOOKING_PENDING เท่านั้น */}
-                              {g.status==="BOOKING_PENDING" && isManager && (
+                              {g.status==="BOOKING_PENDING" && p.canCancelGroup && (
                                 <button onClick={()=>cancelGroup(g)}
                                   style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
                                   ✕ ยกเลิก
