@@ -3,7 +3,7 @@ import { supabase, today, auditLog, triggerAutoSlots } from "../lib/supabase";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 import { T, BTN } from "../theme";
 
-const ROLES   = ["cs","gate","warehouse","queue","manager","admin","supplier"];
+const ROLES   = ["cs","subcon","gate","warehouse","queue","manager","admin","supplier"];
 const ROLE_COLOR = {
   cs:T.navyLight, gate:T.amber, warehouse:T.purple,
   queue:T.goldDark, manager:T.blue, admin:T.red, supplier:T.green,
