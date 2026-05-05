@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
+import { usePermissions, applySubconFilter } from "../lib/permissions";
 import { printBookingSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 
@@ -65,8 +66,9 @@ export default function BookingApp({ user, onBack }) {
     groupNumber:"", subconCode:"", remarks:"",
   });
 
-  const isCS      = user.role === "cs";
-  const isManager = ["manager","admin"].includes(user.role);
+  const p = usePermissions(user);
+  const isCS      = p.role === "cs";
+  const isManager = ["manager","admin"].includes(p.role);
 
   // ── Days — based on daysAhead config ─────────────────────────
   const days = Array.from({length:Math.min(daysAhead,7)},(_,i)=>{
@@ -126,10 +128,12 @@ export default function BookingApp({ user, onBack }) {
     let q = supabase.from("bookings").select("*")
       .in("status",["RESERVED","ON_YARD","CALLED_TO_DOCK","TRUCK_DOCKED","LOADING"])
       .order("booking_date",{ascending:false}).limit(30);
-    if (!isManager) q = q.eq("created_by", user.username);
+    // Subcon เห็นแค่ booking ของตัวเอง
+    if (p.isSubcon && user.subcon_code) q = q.eq("subcon_code", user.subcon_code);
+    else if (!isManager) q = q.eq("created_by", user.username);
     const { data } = await q;
     setMyBookings(data||[]);
-  },[isManager, user.username]);
+  },[isManager, p.isSubcon, user.username, user.subcon_code]);
 
   useEffect(()=>{
     loadConfig(); loadGroups();
@@ -382,7 +386,7 @@ export default function BookingApp({ user, onBack }) {
                       style={{background:"#e5e7eb",color:"#374151",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
                       🖨 Print
                     </button>
-                    {["RESERVED","ON_YARD"].includes(bk.status) &&
+                    {["RESERVED","ON_YARD"].includes(bk.status) && p.canCancelBooking &&
                       <button onClick={()=>cancelBooking(bk)}
                         style={{background:"#fee2e2",color:"#991b1b",border:"none",borderRadius:6,padding:"4px 8px",cursor:"pointer",fontSize:11,fontWeight:700}}>
                         ✕ ยกเลิก
