@@ -15,20 +15,23 @@
 export const isInternal = (role) =>
   ["cs","gate","warehouse","queue","manager","admin"].includes(role);
 
-export const isSubcon   = (role) => role === "supplier";
+// subcon = บริษัทขนส่ง (MON, CLS) → เห็น OBD/Booking ของตัวเอง
+// supplier = ผู้ส่งสินค้า Inbound → เห็นแค่ Supplier Portal
+export const isSubcon   = (role) => role === "subcon";
+export const isSupplier = (role) => role === "supplier";
 
 // ── Permissions ───────────────────────────────────────────────
 export const can = {
-  // OBD
-  createOBD:    (role) => ["cs","manager","admin"].includes(role),
-  cancelOBD:    (role) => ["cs","manager","admin"].includes(role),
-  createGroup:  (role) => ["cs","manager","admin"].includes(role),
+  // OBD — cs + subcon (ของตัวเอง), manager/admin (ทั้งหมด)
+  createOBD:    (role) => ["cs","manager","admin"].includes(role),  // subcon ไม่สร้างเอง
+  cancelOBD:    (role) => ["cs","subcon","manager","admin"].includes(role),
+  createGroup:  (role) => ["cs","subcon","manager","admin"].includes(role),
   cancelGroup:  (role) => ["manager","admin"].includes(role),
   viewAllOBD:   (role) => ["cs","manager","admin"].includes(role),
 
-  // Booking
-  createBooking:  (role) => ["cs","manager","admin"].includes(role),
-  cancelBooking:  (role) => ["cs","manager","admin"].includes(role),
+  // Booking — subcon จอง Dock ได้ (ของตัวเอง)
+  createBooking:  (role) => ["cs","subcon","manager","admin"].includes(role),
+  cancelBooking:  (role) => ["cs","subcon","manager","admin"].includes(role),
   viewAllBookings:(role) => ["cs","manager","admin","gate","warehouse"].includes(role),
 
   // Gate / Warehouse
@@ -43,7 +46,7 @@ export const can = {
   adminPanel:   (role) => ["admin"].includes(role),
   configEdit:   (role) => ["admin"].includes(role),
 
-  // Supplier portal (subcon เท่านั้น)
+  // Supplier Portal (inbound)
   createASN:    (role) => ["supplier","manager","admin"].includes(role),
 };
 
@@ -52,7 +55,8 @@ export const can = {
 // ถ้า isSubcon → filter by subcon_code
 // ถ้า internal → เห็นทั้งหมด
 export function applySubconFilter(query, user, column = "subcon_code") {
-  if (isSubcon(user.role) && user.subcon_code) {
+  // ทั้ง subcon และ supplier เห็นแค่ข้อมูลของตัวเอง
+  if ((isSubcon(user.role) || isSupplier(user.role)) && user.subcon_code) {
     return query.eq(column, user.subcon_code);
   }
   return query;
@@ -64,6 +68,7 @@ export function usePermissions(user) {
   return {
     role,
     isSubcon:    isSubcon(role),
+    isSupplier:  isSupplier(role),
     isInternal:  isInternal(role),
     subconCode:  user?.subcon_code || "",
 
