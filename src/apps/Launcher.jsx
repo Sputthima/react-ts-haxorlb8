@@ -1,8 +1,9 @@
 import React from "react";
 import { T } from "../theme";
-
+ 
 export const ROLE_APPS = {
   cs:        ["obd","booking"],
+  subcon:    ["obd","booking"],          // subcon: OBD+Booking ของตัวเอง
   gate:      ["gate","dock_monitor"],
   warehouse: ["gate"],
   queue:     ["queue","queue_display"],
@@ -10,7 +11,7 @@ export const ROLE_APPS = {
   admin:     ["obd","booking","gate","queue","manager","supplier","inbound","admin","dock_monitor","queue_display"],
   supplier:  ["supplier"],
 };
-
+ 
 export const APPS = [
   { id:"obd",           icon:"📦", name:"OBD & Group",        role:"CS",        color:T.navyLight,  desc:"สร้าง OBD และ Group สินค้า" },
   { id:"booking",       icon:"📅", name:"Dock Booking",        role:"Subcon/CS", color:T.purple,     desc:"จองช่วง Dock สำหรับรถบรรทุก" },
@@ -23,24 +24,24 @@ export const APPS = [
   { id:"inbound",       icon:"⬇️", name:"Inbound Gate & WH",  role:"Gate/WH",   color:"#047857",    desc:"รับสินค้าขาเข้าและ Unloading" },
   { id:"admin",         icon:"⚙️", name:"Admin Panel",         role:"Admin",     color:T.red,        desc:"จัดการผู้ใช้ Slot และ Config" },
 ];
-
+ 
 export default function Launcher({ user, onSelect, onLogout }) {
   const allowed = ROLE_APPS[user.role] || [];
   const visible = APPS.filter(a => allowed.includes(a.id));
   const now = new Date().toLocaleDateString("th-TH", {
     weekday:"long", day:"numeric", month:"long", year:"numeric",
   });
-
+ 
   return (
     <div style={{ minHeight:"100vh", background:T.topbarGrad, position:"relative", overflow:"hidden" }}>
-
+ 
       {/* Background decoration */}
       <div style={{ position:"absolute", bottom:-80, right:-80, width:400, height:400, borderRadius:"50%", background:"rgba(245,168,0,.06)", pointerEvents:"none" }}/>
       <div style={{ position:"absolute", top:-60, left:-60, width:300, height:300, borderRadius:"50%", background:"rgba(255,255,255,.03)", pointerEvents:"none" }}/>
-
+ 
       {/* Gold top stripe */}
       <div style={{ height:4, background:`linear-gradient(90deg,${T.gold},${T.goldLight},${T.gold})` }}/>
-
+ 
       {/* Header */}
       <div style={{ padding:"18px 28px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, borderBottom:"1px solid rgba(255,255,255,.08)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -64,7 +65,7 @@ export default function Launcher({ user, onSelect, onLogout }) {
           >Logout</button>
         </div>
       </div>
-
+ 
       {/* App Grid */}
       <div style={{ padding:"28px 24px", display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:16, maxWidth:1300, margin:"0 auto" }}>
         {visible.map(app => (
