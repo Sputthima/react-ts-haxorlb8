@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase, today, nowISO, auditLog, sendEmail } from "../lib/supabase";
 import { downloadASNTemplate } from "../lib/templates";
+import { usePermissions } from "../lib/permissions";
 import { printInboundSlip } from "../lib/pdf";
 import { Alert, Spinner, StatusBadge } from "../components/UI";
 
